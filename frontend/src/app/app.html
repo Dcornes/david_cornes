@@ -1,0 +1,25 @@
+<main>
+  <header>
+    <h1>David Cornes</h1>
+    <a href="/resume.pdf" download="DavidCornesResume.pdf">Download résumé (PDF)</a>
+  </header>
+
+  <object class="resume" data="/resume.pdf" type="application/pdf" aria-label="Résumé">
+    <p>
+      Your browser can't display PDFs inline.
+      <a href="/resume.pdf">Open the résumé</a> instead.
+    </p>
+  </object>
+
+  <footer class="status">
+    Backend:
+    @if (health.isLoading()) {
+      <span>checking…</span>
+    } @else if (health.error()) {
+      <span class="down">unreachable</span>
+      <button type="button" (click)="health.reload()">Retry</button>
+    } @else {
+      <span class="up">{{ health.value()?.status }}</span>
+    }
+  </footer>
+</main>
