@@ -1,9 +1,5 @@
 import { Component } from '@angular/core';
-import { httpResource } from '@angular/common/http';
-
-interface Health {
-  status: string;
-}
+import { RESUME } from './resume';
 
 @Component({
   imports: [],
@@ -12,5 +8,7 @@ interface Health {
   templateUrl: './app.html',
 })
 export class App {
-  protected readonly health = httpResource<Health>(() => '/api/health');
+  protected readonly resume = RESUME;
+  protected readonly year = new Date().getFullYear();
+  protected readonly phoneHref = 'tel:+1' + RESUME.phone.replace(/\D/g, '');
 }

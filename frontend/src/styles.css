@@ -1,1 +1,45 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+  /* Eggshell white */
+  --bg: #f0ead6;
+  --text: #4a4a4a;
+  /* Lighter grey for secondary text; still ≥4.5:1 contrast on --bg */
+  --muted: #666666;
+  /* --text at ~15% over --bg */
+  --line: #d7d2c1;
+  color-scheme: light;
+}
+
+@media print {
+  :root {
+    --bg: #ffffff;
+    --text: #000000;
+    --muted: #555555;
+    --line: #cccccc;
+    color-scheme: light;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--text);
+  color: var(--bg);
+}

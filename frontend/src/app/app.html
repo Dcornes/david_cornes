@@ -1,25 +1,77 @@
-<main>
-  <header>
-    <h1>David Cornes</h1>
-    <a href="/resume.pdf" download="DavidCornesResume.pdf">Download résumé (PDF)</a>
+<div class="page">
+  <header class="topbar">
+    <h1>
+      {{ resume.name }},
+      <span class="muted">{{ resume.title }}</span>
+    </h1>
+    <nav aria-label="Primary">
+      <a href="/resume.pdf" download="DavidCornesResume.pdf">Résumé PDF <span aria-hidden="true">↗</span></a>
+    </nav>
   </header>
 
-  <object class="resume" data="/resume.pdf" type="application/pdf" aria-label="Résumé">
-    <p>
-      Your browser can't display PDFs inline.
-      <a href="/resume.pdf">Open the résumé</a> instead.
-    </p>
-  </object>
+  <div class="layout">
+    <aside class="intro">
+      <p class="summary">{{ resume.summary }}</p>
+      <ul class="links">
+        <li>
+          <a [href]="'mailto:' + resume.email">{{ resume.email }} <span aria-hidden="true">↗</span></a>
+        </li>
+        <li>
+          <a [href]="phoneHref">{{ resume.phone }} <span aria-hidden="true">↗</span></a>
+        </li>
+        <li>
+          <a [href]="resume.linkedin" target="_blank" rel="noopener noreferrer">LinkedIn <span aria-hidden="true">↗</span></a>
+        </li>
+        <li class="muted">{{ resume.location }}</li>
+      </ul>
+    </aside>
 
-  <footer class="status">
-    Backend:
-    @if (health.isLoading()) {
-      <span>checking…</span>
-    } @else if (health.error()) {
-      <span class="down">unreachable</span>
-      <button type="button" (click)="health.reload()">Retry</button>
-    } @else {
-      <span class="up">{{ health.value()?.status }}</span>
-    }
-  </footer>
-</main>
+    <main>
+      <section aria-labelledby="experience-heading">
+        <h2 id="experience-heading">Experience</h2>
+        @for (job of resume.experience; track job.title + job.dates) {
+          <article class="row job">
+            <div class="meta">
+              <h3>{{ job.title }}</h3>
+              <p class="muted">{{ job.company }}</p>
+              <p class="muted">{{ job.dates }}</p>
+              <p class="muted">{{ job.location }}</p>
+            </div>
+            @if (job.bullets.length) {
+              <ul class="bullets">
+                @for (bullet of job.bullets; track bullet) {
+                  <li>{{ bullet }}</li>
+                }
+              </ul>
+            }
+          </article>
+        }
+      </section>
+
+      <section aria-labelledby="skills-heading">
+        <h2 id="skills-heading">Skills</h2>
+        @for (group of resume.skills; track group.label) {
+          <div class="row skill">
+            <h3>{{ group.label }}</h3>
+            <p class="skill-items">{{ group.items.join(', ') }}</p>
+          </div>
+        }
+      </section>
+
+      <section aria-labelledby="education-heading">
+        <h2 id="education-heading">Education</h2>
+        @for (school of resume.education; track school.school) {
+          <div class="row school">
+            <div class="meta">
+              <h3>{{ school.school }}</h3>
+              <p class="muted">{{ school.date }}</p>
+            </div>
+            <p>{{ school.degree }}</p>
+          </div>
+        }
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer muted">© {{ year }} {{ resume.name }}</footer>
+</div>
