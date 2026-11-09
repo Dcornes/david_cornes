@@ -1,0 +1,312 @@
+.page {
+  --up: #2f6f45;
+  --down: #a3392c;
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+h1,
+h2,
+p,
+dl,
+dd {
+  margin: 0;
+}
+
+a {
+  transition: opacity 0.15s;
+}
+
+a:hover {
+  opacity: 0.6;
+}
+
+/* --- Top bar (matches the résumé page, with a shorter hero) --- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: clamp(3rem, 10vh, 6rem);
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+h1 .muted {
+  display: block;
+  font-weight: 400;
+}
+
+nav a {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+/* --- Connection status --- */
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.status.live .dot {
+  background: var(--up);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status.reconnecting .dot {
+  background: var(--down);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* --- Sections --- */
+section {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+section + section {
+  margin-top: 3rem;
+}
+
+h2 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.empty {
+  padding: 1rem 0;
+  font-size: 0.8125rem;
+}
+
+/* --- Crossed markets --- */
+#crossed-heading {
+  font-size: 0.8125rem;
+}
+
+.crossed {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Symbol | detail | gap, in fixed columns so lines don't shift as prices change. */
+.crossed li {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr 5rem;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.crossed li + li {
+  border-top: 1px solid var(--line);
+}
+
+.gap {
+  color: var(--up);
+  font-weight: 600;
+  text-align: right;
+}
+
+.tag {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* Keeps its space when not crossed, so the heading never changes size. */
+.tag.hidden {
+  visibility: hidden;
+}
+
+/* --- One pair --- */
+.market-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem 2rem;
+  padding-bottom: 1rem;
+}
+
+/* Fixed-width columns: the summary stays put however long the numbers get. */
+.overview {
+  display: grid;
+  grid-template-columns: 8rem 8rem 5rem;
+  gap: 0.5rem 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.overview dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.overview dd {
+  min-height: 1.5em; /* same height whether or not there's an exchange name yet */
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview dd.muted {
+  font-weight: 400;
+  font-size: 0.75rem;
+}
+
+/* --- Exchange table --- */
+.table-wrap {
+  overflow-x: auto;
+}
+
+/* Fixed layout: column widths come from the <col>s, not from the numbers inside. */
+table {
+  width: 100%;
+  min-width: 40rem; /* narrower screens scroll the table instead of squeezing it */
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-exchange {
+  width: 15%;
+}
+
+.col-size {
+  width: 19%;
+}
+
+.col-price {
+  width: 15%;
+}
+
+.col-time {
+  width: 17%;
+}
+
+th,
+td {
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+th:first-child {
+  padding-left: 0;
+}
+
+thead th {
+  border-top: none;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+tbody th {
+  font-weight: 600;
+}
+
+.num {
+  text-align: right;
+}
+
+.price {
+  transition: color 0.3s;
+}
+
+.price.up {
+  color: var(--up);
+}
+
+.price.down {
+  color: var(--down);
+}
+
+/* Best bid / best ask across all exchanges */
+.price.best {
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 currentColor;
+}
+
+.footer {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 860px) {
+  .page {
+    padding: 1.25rem 1rem 1.5rem;
+  }
+
+  /* Bid and ask on their own lines, and every row two lines high, so crossing/uncrossing doesn't change height. */
+  .crossed li {
+    grid-template-columns: 5rem minmax(0, 1fr) 3.5rem;
+    min-height: calc(3em + 1.5rem);
+  }
+
+  .crossed .side {
+    display: block;
+    font-size: 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .crossed .joiner {
+    display: none;
+  }
+
+  .overview {
+    width: 100%;
+    grid-template-columns: 1fr 1fr 4.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status.live .dot {
+    animation: none;
+  }
+
+  .price {
+    transition: none;
+  }
+}

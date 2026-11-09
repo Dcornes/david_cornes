@@ -1,14 +1,9 @@
 import { Component } from '@angular/core';
-import { RESUME } from './resume';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
-  imports: [],
+  imports: [RouterOutlet],
   selector: 'app-root',
-  styleUrl: './app.css',
-  templateUrl: './app.html',
+  template: '<router-outlet />',
 })
-export class App {
-  protected readonly resume = RESUME;
-  protected readonly year = new Date().getFullYear();
-  protected readonly phoneHref = 'tel:+1' + RESUME.phone.replace(/\D/g, '');
-}
+export class App {}

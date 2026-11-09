@@ -1,0 +1,21 @@
+# Makes market_data installable so the website backend can use it:
+#   pip install -e ../collector      (local, from backend/)
+#   pip install /collector           (Docker)
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "market-data"
+version = "0.1.0"
+requires-python = ">=3.10"
+# Only what the streams and MarketDataHandler need. The OKX account client
+# (python-okx) is collector-only and stays in requirements.txt.
+dependencies = [
+    "websockets>=13",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["market_data*"]

@@ -14,3 +14,10 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+#keys
+.env
+
+
+# Python packaging (created by pip install -e)
+*.egg-info/

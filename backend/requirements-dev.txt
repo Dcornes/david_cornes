@@ -1,2 +1,4 @@
 -r requirements.txt
+# Live market data (installed from ../collector; run pip from backend/)
+-e ../collector
 pytest>=8

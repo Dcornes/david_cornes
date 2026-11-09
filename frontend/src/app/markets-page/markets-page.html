@@ -1,0 +1,124 @@
+<div class="page">
+  <header class="topbar">
+    <h1>
+      <a routerLink="/">David Cornes,</a>
+      <span class="muted">Live markets</span>
+    </h1>
+    <nav aria-label="Primary">
+      <a routerLink="/">Résumé</a>
+    </nav>
+  </header>
+
+  <p class="status" [class]="market.status()" role="status">
+    <span class="dot" aria-hidden="true"></span>
+    @switch (market.status()) {
+      @case ('live') { Live: OKX, Kraken and Binance.US }
+      @case ('reconnecting') { Reconnecting… }
+      @default { Connecting… }
+    }
+  </p>
+
+  <section aria-labelledby="crossed-heading">
+    <h2 id="crossed-heading">Crossed markets</h2>
+    <!-- One line per pair, crossed or not, so this list never changes height. -->
+    <ul class="crossed">
+      @for (s of market.snapshots(); track s.symbol) {
+        <li [class.is-crossed]="s.crossed">
+          <strong>{{ s.symbol }}</strong>
+          @if (s.crossed) {
+            <!-- One line on desktop; two fixed lines (bid / ask) on phones. -->
+            <span class="detail">
+              <span class="side">bid {{ s.best_bid?.price }} on {{ s.best_bid?.exchange }}</span>
+              <span class="joiner"> is above </span>
+              <span class="side">ask {{ s.best_ask?.price }} on {{ s.best_ask?.exchange }}</span>
+            </span>
+            <span class="gap">+{{ gap(s) }}</span>
+          } @else {
+            <span class="detail muted">Not crossed</span>
+          }
+        </li>
+      }
+    </ul>
+  </section>
+
+  @for (s of market.snapshots(); track s.symbol) {
+    <section class="market" [attr.aria-labelledby]="'m-' + s.symbol">
+      <div class="market-head">
+        <h2 [id]="'m-' + s.symbol">
+          {{ s.symbol }}
+          <!-- Always rendered (just hidden) so the heading doesn't change size. -->
+          <span class="tag" [class.hidden]="!s.crossed" [attr.aria-hidden]="!s.crossed">Crossed</span>
+        </h2>
+        <dl class="overview">
+          <div>
+            <dt>Best bid</dt>
+            <dd>{{ s.best_bid?.price ?? '–' }}</dd>
+            <dd class="muted">{{ s.best_bid?.exchange }}</dd>
+          </div>
+          <div>
+            <dt>Best ask</dt>
+            <dd>{{ s.best_ask?.price ?? '–' }}</dd>
+            <dd class="muted">{{ s.best_ask?.exchange }}</dd>
+          </div>
+          <div>
+            <dt>Spread</dt>
+            <dd>{{ s.spread ?? '–' }}</dd>
+          </div>
+        </dl>
+      </div>
+
+      @if (s.exchanges.length) {
+        <div class="table-wrap">
+          <table>
+            <!-- Fixed column widths: changing numbers can't resize the table. -->
+            <colgroup>
+              <col class="col-exchange" />
+              <col class="col-size" />
+              <col class="col-price" />
+              <col class="col-price" />
+              <col class="col-size" />
+              <col class="col-time" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">Exchange</th>
+                <th scope="col" class="num">Bid size</th>
+                <th scope="col" class="num">Bid</th>
+                <th scope="col" class="num">Ask</th>
+                <th scope="col" class="num">Ask size</th>
+                <th scope="col" class="num">Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (q of s.exchanges; track q.exchange) {
+                @let moves = market.moves()[s.symbol]?.[q.exchange];
+                <tr>
+                  <th scope="row">{{ q.exchange }}</th>
+                  <td class="num muted">{{ q.bid_quantity }}</td>
+                  <td class="num price" [class]="moveClass(moves?.bid)" [class.best]="q.exchange === s.best_bid?.exchange">
+                    {{ q.bid }}
+                  </td>
+                  <td class="num price" [class]="moveClass(moves?.ask)" [class.best]="q.exchange === s.best_ask?.exchange">
+                    {{ q.ask }}
+                  </td>
+                  <td class="num muted">{{ q.ask_quantity }}</td>
+                  <td class="num muted">{{ q.timestamp | date: 'HH:mm:ss.SSS' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="muted empty">Waiting for prices…</p>
+      }
+    </section>
+  } @empty {
+    @if (market.status() === 'live') {
+      <p class="muted empty">Waiting for the first prices…</p>
+    }
+  }
+
+  <footer class="footer muted">
+    Best bid and ask are highlighted. Prices turn green or red with their last move.
+  </footer>
+</div>

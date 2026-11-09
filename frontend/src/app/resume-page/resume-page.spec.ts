@@ -1,16 +1,17 @@
 import { TestBed } from '@angular/core/testing';
-import { App } from './app';
-import { RESUME } from './resume';
+import { provideRouter } from '@angular/router';
+import { ResumePage } from './resume-page';
+import { RESUME } from '../resume';
 
-describe('App', () => {
+describe('ResumePage', () => {
   function render(): HTMLElement {
-    const fixture = TestBed.createComponent(App);
+    const fixture = TestBed.createComponent(ResumePage);
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [App] }).compileComponents();
+    await TestBed.configureTestingModule({ imports: [ResumePage], providers: [provideRouter([])] }).compileComponents();
   });
 
   it('renders the name, title, summary and contact links', () => {
@@ -34,6 +35,10 @@ describe('App', () => {
       expect(jobs[i].textContent).toContain(job.company);
       expect(jobs[i].querySelectorAll('.bullets li').length).toBe(job.bullets.length);
     });
+  });
+
+  it('links to the live markets page', () => {
+    expect(render().querySelector('a[href="/markets"]')?.textContent).toContain('Live markets');
   });
 
   it('renders skills and education', () => {

@@ -14,7 +14,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     STATIC_DIR=/app/static
 
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# The live markets page uses the collector's market_data package (exchange streams + MarketDataHandler).
+# Only its code is copied; collector/.env never enters the image (see .dockerignore).
+COPY collector/pyproject.toml /collector/pyproject.toml
+COPY collector/market_data /collector/market_data
+RUN pip install --no-cache-dir -r requirements.txt /collector
 
 COPY backend/app ./app
 COPY --from=frontend /frontend/dist/frontend/browser ./static

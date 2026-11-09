@@ -6,3 +6,13 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     autoDeploy: true
+    # Only rebuild the website when website files change. The live markets page
+    # uses collector/market_data, so that counts; the rest of collector/ doesn't.
+    buildFilter:
+      paths:
+        - backend/**
+        - frontend/**
+        - collector/market_data/**
+        - collector/pyproject.toml
+        - Dockerfile
+        - .dockerignore
