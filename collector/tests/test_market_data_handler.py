@@ -86,9 +86,9 @@ def test_snapshot_to_dict() -> None:
         "symbol": "BTC-USDT",
         "exchanges": [
             {"exchange": "Kraken", "bid": "101", "bid_quantity": "0.5", "ask": "103", "ask_quantity": "1",
-             "timestamp": "2026-11-09T00:00:00+00:00"},
+             "timestamp": "2026-11-09T00:00:00+00:00", "converted_from": None},
             {"exchange": "OKX", "bid": "100", "bid_quantity": "1", "ask": "102", "ask_quantity": "1",
-             "timestamp": "2026-11-09T00:00:00+00:00"},
+             "timestamp": "2026-11-09T00:00:00+00:00", "converted_from": None},
         ],
         "best_bid": {"price": "101", "quantity": "0.5", "exchange": "Kraken"},
         "best_ask": {"price": "102", "quantity": "1", "exchange": "OKX"},

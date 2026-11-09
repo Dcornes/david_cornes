@@ -1,4 +1,4 @@
-"""Combine quotes from every exchange (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex) into one best bid / best ask per pair.
+"""Combine quotes from every exchange (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit, Bithumb) into one best bid / best ask per pair.
 
 Run from the collector/ directory:
 
@@ -19,6 +19,10 @@ from .binance.order_book_stream import EXCHANGE as BINANCE
 from .binance.order_book_stream import stream_order_books as binance_stream
 from .bitfinex.order_book_stream import EXCHANGE as BITFINEX
 from .bitfinex.order_book_stream import stream_order_books as bitfinex_stream
+from .bitkub.order_book_stream import EXCHANGE as BITKUB
+from .bitkub.order_book_stream import stream_order_books as bitkub_stream
+from .bithumb.order_book_stream import EXCHANGE as BITHUMB
+from .bithumb.order_book_stream import stream_order_books as bithumb_stream
 from .bitstamp.order_book_stream import EXCHANGE as BITSTAMP
 from .bitstamp.order_book_stream import stream_order_books as bitstamp_stream
 from .coinbase.order_book_stream import EXCHANGE as COINBASE
@@ -32,6 +36,8 @@ from .kraken.order_book_stream import EXCHANGE as KRAKEN
 from .kraken.order_book_stream import stream_order_books as kraken_stream
 from .okx.order_book_stream import EXCHANGE as OKX
 from .okx.order_book_stream import stream_order_books as okx_stream
+from .upbit.order_book_stream import EXCHANGE as UPBIT
+from .upbit.order_book_stream import stream_order_books as upbit_stream
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +53,9 @@ DEFAULT_STREAMS: dict[str, Stream] = {
     "coinbase": coinbase_stream,
     "gemini": gemini_stream,
     "bitfinex": bitfinex_stream,
+    "bitkub": bitkub_stream,  # THB prices converted to USDT
+    "upbit": upbit_stream,  # KRW prices converted to USDT
+    "bithumb": bithumb_stream,  # KRW prices converted to USDT
 }
 
 # Display name for each stream, shown in feed statuses.
@@ -59,6 +68,9 @@ EXCHANGE_NAMES = {
     "coinbase": COINBASE,
     "gemini": GEMINI,
     "bitfinex": BITFINEX,
+    "bitkub": BITKUB,
+    "upbit": UPBIT,
+    "bithumb": BITHUMB,
 }
 
 # connecting: first connection, no quotes yet; live: quotes arriving;
@@ -133,6 +145,7 @@ class MarketSnapshot:
                     "ask": str(q.ask_price),
                     "ask_quantity": str(q.ask_quantity),
                     "timestamp": q.timestamp.isoformat(),
+                    "converted_from": q.converted_from,  # e.g. "THB" when an exchange rate was used
                 }
                 for _, q in sorted(self.quotes.items())
             ],

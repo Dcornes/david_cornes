@@ -42,3 +42,16 @@ def test_split_symbol(symbol: str) -> None:
 def test_split_symbol_rejects_non_pairs(symbol: str) -> None:
     with pytest.raises(ValueError):
         split_symbol(symbol)
+
+
+def test_converted_from_is_optional_and_shown_when_set() -> None:
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    from market_data.common.top_of_book import TopOfBook
+
+    args = ("Bitkub", "BTC", "USDT", datetime(2026, 11, 9, tzinfo=timezone.utc), Decimal(1), Decimal(1), Decimal(2), Decimal(1))
+    assert TopOfBook(*args).converted_from is None
+    converted = TopOfBook(*args, converted_from="THB")
+    assert converted.converted_from == "THB"
+    assert str(converted).endswith("(converted from THB)")

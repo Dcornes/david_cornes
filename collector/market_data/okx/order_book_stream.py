@@ -8,6 +8,7 @@ Run from the collector/ directory:
 import argparse
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -20,7 +21,12 @@ from websockets.asyncio.client import connect
 from ..common.top_of_book import TopOfBook, split_symbol
 from .request_objects.order_book_request import OrderBookRequest
 
+log = logging.getLogger(__name__)
+
 EXCHANGE = "OKX"
+
+# Error code for subscribing to an instrument OKX doesn't list.
+UNKNOWN_INSTRUMENT = "60018"
 
 # Public market data needs no API keys.
 PUBLIC_WS_URL = "wss://ws.okx.com:443/ws/v5/public"
@@ -38,8 +44,12 @@ async def stream_order_books(
     channel: TopOfBookChannel = "books5",
     url: str = PUBLIC_WS_URL,
 ) -> AsyncIterator[TopOfBook]:
-    """Subscribe to order books and yield the best bid and ask on every update."""
+    """Subscribe to order books and yield the best bid and ask on every update.
+
+    Instruments OKX doesn't list are skipped with a warning; it's an error only if none are listed.
+    """
     request = OrderBookRequest.subscribe(*inst_ids, channel=channel, id="orderbook1")
+    rejected = 0
 
     async with connect(url) as ws:
         await ws.send(request.to_json())
@@ -57,7 +67,14 @@ async def stream_order_books(
             message = json.loads(raw)
             event = message.get("event")
             if event == "error":
-                raise RuntimeError(f"OKX error {message.get('code')}: {message.get('msg')}")
+                error = f"OKX error {message.get('code')}: {message.get('msg')}"
+                if message.get("code") != UNKNOWN_INSTRUMENT:
+                    raise RuntimeError(error)
+                rejected += 1
+                if rejected == len(inst_ids):
+                    raise RuntimeError(error)
+                log.warning("%s (skipping it)", error)
+                continue
             if event:  # subscribe/unsubscribe acks carry "arg"; notices carry "msg"
                 print(f"[{event}] {message.get('arg') or message.get('msg')}")
                 continue

@@ -50,15 +50,24 @@ app.include_router(quotes_router)
 
 
 class SPAStaticFiles(StaticFiles):
-    """Serves the Angular app; unknown paths like /markets get index.html so the router can handle them."""
+    """Serves the Angular app; unknown paths like /markets get index.html so the router can handle them.
+
+    index.html is sent with Cache-Control: no-cache so browsers check for a new version
+    after each deploy (otherwise a cached copy can point to scripts that no longer exist).
+    The scripts themselves have content hashes in their names, so they can be cached.
+    """
 
     async def get_response(self, path: str, scope):
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
         except StarletteHTTPException as error:
-            if error.status_code != 404 or scope["path"].startswith("/api/"):
+            # Missing files (e.g. an old main-ABC123.js) stay 404s; only page routes get the app.
+            if error.status_code != 404 or scope["path"].startswith("/api/") or Path(path).suffix:
                 raise
-            return await super().get_response("index.html", scope)
+            response = await super().get_response("index.html", scope)
+        if response.media_type == "text/html":
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 # In production the built Angular app is served from here. Mounted last so /api routes win.

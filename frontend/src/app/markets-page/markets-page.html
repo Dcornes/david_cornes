@@ -9,11 +9,19 @@
     </nav>
   </header>
 
+  <label class="option">
+    <input type="checkbox" [checked]="showConverted()" (change)="setShowConverted($any($event.target).checked)" />
+    Show prices converted from THB or KRW
+    <span class="converted" aria-hidden="true">
+      <svg viewBox="0 0 16 16"><path d="M2 5h10M9 2l3 3-3 3M14 11H4M7 8l-3 3 3 3" /></svg>
+    </span>
+  </label>
+
   <section aria-labelledby="crossed-heading">
     <h2 id="crossed-heading">Crossed markets</h2>
     <!-- One line per pair, crossed or not, so this list never changes height. -->
     <ul class="crossed">
-      @for (s of market.snapshots(); track s.symbol) {
+      @for (s of snapshots(); track s.symbol) {
         <li [class.is-crossed]="s.crossed">
           <strong>{{ s.symbol }}</strong>
           @if (s.crossed) {
@@ -32,7 +40,7 @@
     </ul>
   </section>
 
-  @for (s of market.snapshots(); track s.symbol) {
+  @for (s of snapshots(); track s.symbol) {
     <section class="market" [attr.aria-labelledby]="'m-' + s.symbol">
       <div class="market-head">
         <h2 [id]="'m-' + s.symbol">
@@ -84,7 +92,17 @@
               @for (q of s.exchanges; track q.exchange) {
                 @let moves = market.moves()[s.symbol]?.[q.exchange];
                 <tr>
-                  <th scope="row">{{ q.exchange }}</th>
+                  <th scope="row">
+                    {{ q.exchange }}
+                    @if (q.converted_from) {
+                      @let note = 'Converted from ' + q.converted_from + ' to ' + quoteOf(s.symbol) + ' with an exchange rate';
+                      <span class="converted" [title]="note" role="img" [attr.aria-label]="note">
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                          <path d="M2 5h10M9 2l3 3-3 3M14 11H4M7 8l-3 3 3 3" />
+                        </svg>
+                      </span>
+                    }
+                  </th>
                   <td class="num muted">{{ q.bid_quantity }}</td>
                   <td class="num price" [class]="moveClass(moves?.bid)" [class.best]="q.exchange === s.best_bid?.exchange">
                     {{ q.bid }}
@@ -142,5 +160,11 @@
 
   <footer class="footer muted">
     Best bid and ask are highlighted. Prices turn green or red with their last move.
+    <span class="legend">
+      <span class="converted" aria-hidden="true">
+        <svg viewBox="0 0 16 16"><path d="M2 5h10M9 2l3 3-3 3M14 11H4M7 8l-3 3 3 3" /></svg>
+      </span>
+      Converted from a local currency (THB or KRW) with an hourly exchange rate.
+    </span>
   </footer>
 </div>

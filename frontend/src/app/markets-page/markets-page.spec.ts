@@ -75,6 +75,7 @@ describe('MarketsPage', () => {
   }
 
   beforeEach(async () => {
+    localStorage.clear(); // each test starts with the default (converted prices shown)
     vi.stubGlobal('EventSource', FakeEventSource);
     await TestBed.configureTestingModule({ imports: [MarketsPage], providers: [provideRouter([])] }).compileComponents();
     fixture = TestBed.createComponent(MarketsPage);
@@ -109,7 +110,7 @@ describe('MarketsPage', () => {
 
     const btc = markets[0];
     const rows = btc.querySelectorAll('tbody tr');
-    expect([...rows].map((r) => r.querySelector('th')?.textContent)).toEqual(['Kraken', 'OKX']);
+    expect([...rows].map((r) => r.querySelector('th')?.textContent?.trim())).toEqual(['Kraken', 'OKX']);
     expect(btc.querySelector('td.best')?.textContent?.trim()).toBe('75017.6'); // Kraken's ask comes first
     expect([...btc.querySelectorAll('td.best')].map((td) => td.textContent?.trim())).toEqual(['75017.6', '75022.2']);
     expect(btc.querySelector('.overview')?.textContent).toContain('75022.2');
@@ -129,6 +130,45 @@ describe('MarketsPage', () => {
     expect(btc.querySelector('.gap')?.textContent).toBe('+4.6');
     expect(eth.classList).not.toContain('is-crossed');
     expect(eth.textContent).toContain('Not crossed');
+  });
+
+  it('marks exchanges whose prices were converted with an exchange rate', () => {
+    push({
+      ...BTC,
+      exchanges: [{ ...quote('Bitkub', '74843.54', '74894.74'), converted_from: 'THB' }, quote('OKX', '75022.2', '75022.3')],
+    });
+
+    const [bitkub, okx] = page.querySelectorAll('.market tbody tr');
+    const icon = bitkub.querySelector('.converted');
+    expect(icon?.getAttribute('title')).toBe('Converted from THB to USDT with an exchange rate');
+    expect(icon?.getAttribute('aria-label')).toBe('Converted from THB to USDT with an exchange rate');
+    expect(okx.querySelector('.converted')).toBeNull();
+    expect(page.querySelector('.footer')?.textContent).toContain('Converted from a local currency');
+  });
+
+  it('can hide converted prices, recalculating the best prices, and remembers the choice', () => {
+    const withBitkub: MarketSnapshot = {
+      ...BTC,
+      exchanges: [{ ...quote('Bitkub', '75030.5', '75040.1'), converted_from: 'THB' }, ...BTC.exchanges],
+      best_bid: { price: '75030.5', quantity: '1', exchange: 'Bitkub' },
+    };
+    push(withBitkub);
+    const rows = () => [...page.querySelectorAll('.market tbody th')].map((th) => th.textContent?.trim());
+    const toggle = page.querySelector<HTMLInputElement>('.option input')!;
+    expect(toggle.checked).toBe(true);
+    expect(rows()).toEqual(['Bitkub', 'Kraken', 'OKX']);
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(rows()).toEqual(['Kraken', 'OKX']);
+    expect(page.querySelector('.overview')?.textContent).toContain('75022.2'); // OKX's bid is the best again
+    expect(page.querySelector('.overview')?.textContent).not.toContain('Bitkub');
+    expect(localStorage.getItem('markets.showConverted')).toBe('false');
+
+    // A new visit starts with converted prices still hidden.
+    const again = TestBed.createComponent(MarketsPage);
+    again.detectChanges();
+    expect(again.nativeElement.querySelector('.option input').checked).toBe(false);
   });
 
   it('uses fixed column widths so tables keep their size', () => {
@@ -197,7 +237,7 @@ describe('MarketsPage', () => {
     fixture.detectChanges();
 
     const market = page.querySelector('.market')!;
-    const rows = [...market.querySelectorAll('tbody tr')].map((r) => r.querySelector('th')?.textContent);
+    const rows = [...market.querySelectorAll('tbody tr')].map((r) => r.querySelector('th')?.textContent?.trim());
     expect(rows).toEqual(['Bitstamp', 'OKX']); // Kraken removed, Bitstamp added, still sorted
     expect(market.querySelector('td.best')?.textContent?.trim()).toBe('75030.0');
     expect(market.querySelector('.overview')?.textContent).toContain('0.1');

@@ -171,6 +171,29 @@ def test_failure_with_empty_cache_raises(fake) -> None:
         RateService.get_quote("EUR_USD")
 
 
+def test_usdt_pairs_come_from_the_usdt_source_without_contacting_oanda(fake) -> None:
+    usdt = FakeClient()
+    RateService._clients["usdt"] = usdt
+
+    assert RateService.get_quote("USDT_THB").pair == "USDT_THB"
+    assert usdt.calls == [["USDT_THB"]]
+    assert fake.calls == []  # no OANDA request (works without OANDA credentials)
+
+    RateService.get_quote("EUR_USD")
+    assert "EUR_USD" in fake.calls[-1] and "USDT_THB" not in fake.calls[-1]
+
+
+def test_usdt_failure_doesnt_block_cached_forex(fake) -> None:
+    usdt = FakeClient()
+    RateService._clients["usdt"] = usdt
+    RateService.get_quotes(["EUR_USD", "USDT_THB"])
+
+    usdt.fail = True
+    fake.now["t"] += RateService.REFRESH_SECONDS
+    assert RateService.get_quote("EUR_USD").bid == Decimal("1.0")  # forex refreshed fine
+    assert RateService.get_quote("USDT_THB").bid == Decimal("1.0")  # stale USDT rate still served
+
+
 def test_rejected_new_pair_is_not_tracked(fake) -> None:
     RateService.get_quotes()
     fake.fail = True

@@ -124,6 +124,27 @@ nav a {
   }
 }
 
+/* --- Show converted prices option --- */
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 1rem 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.option input {
+  margin: 0;
+  accent-color: var(--text);
+}
+
+.option .converted {
+  margin: 0;
+  cursor: inherit;
+}
+
 /* --- Sections --- */
 section {
   padding-top: 1.25rem;
@@ -131,7 +152,8 @@ section {
 }
 
 /* The top bar already draws a line above the first section. */
-.topbar + section {
+.topbar + section,
+.option + section {
   border-top: none;
 }
 
@@ -308,6 +330,35 @@ tbody th {
 .price.best {
   font-weight: 600;
   box-shadow: inset 0 -2px 0 currentColor;
+}
+
+/* Exchange-rate icon: prices converted from THB/KRW. */
+.converted {
+  display: inline-flex;
+  vertical-align: -0.1em;
+  margin-left: 0.3rem;
+  color: var(--muted);
+  cursor: help;
+}
+
+.converted svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.legend {
+  display: block;
+  margin-top: 0.4rem;
+}
+
+.legend .converted {
+  margin: 0 0.3rem 0 0;
+  cursor: auto;
 }
 
 .footer {

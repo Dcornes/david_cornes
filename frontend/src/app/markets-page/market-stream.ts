@@ -8,6 +8,8 @@ export interface ExchangeQuote {
   ask: string;
   ask_quantity: string;
   timestamp: string;
+  /** Set when the prices were converted with an exchange rate, e.g. "THB". */
+  converted_from?: string | null;
 }
 
 export interface BestPrice {

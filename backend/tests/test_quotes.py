@@ -178,6 +178,23 @@ def test_spa_fallback_serves_index_but_not_for_api(tmp_path) -> None:
     assert client.get("/api/nope").status_code == 404
 
 
+def test_spa_index_is_revalidated_but_scripts_are_cacheable_and_missing_ones_404(tmp_path) -> None:
+    from fastapi import FastAPI
+
+    from app.main import SPAStaticFiles
+
+    (tmp_path / "index.html").write_text('<app-root></app-root><script src="main-NEW.js"></script>')
+    (tmp_path / "main-NEW.js").write_text("console.log('hi')")
+    site = FastAPI()
+    site.mount("/", SPAStaticFiles(directory=tmp_path, html=True))
+    client = TestClient(site)
+
+    for page in ("/", "/markets"):
+        assert client.get(page).headers["cache-control"] == "no-cache"  # always check for a new deploy
+    assert "cache-control" not in client.get("/main-NEW.js").headers
+    assert client.get("/main-OLD.js").status_code == 404  # not index.html served as a script
+
+
 def test_configured_symbols(monkeypatch) -> None:
     monkeypatch.setenv("QUOTE_SYMBOLS", " BTC-USDT , eth-usdt,")
     assert quotes.configured_symbols() == ["BTC-USDT", "eth-usdt"]

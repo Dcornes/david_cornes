@@ -1,20 +1,23 @@
-"""Forex bid/ask quotes from the OANDA v20 REST API, cached for an hour.
+"""Exchange rates, cached for an hour: forex from the OANDA v20 REST API, and USDT
+rates (USDT_USD, USDT_THB, USDT_KRW) from public crypto exchange APIs.
 
 Call it from any collector:
 
     from market_data.oanda.rate_service import RateService
 
     eur = RateService.get_quote("EUR_USD")     # Quote(pair, bid, ask, time)
+    thb = RateService.get_quote("USDT_THB")    # baht for 1 USDT
     majors = RateService.get_quotes()          # {"EUR_USD": Quote, ...}
 
-The first call fetches rates from OANDA; later calls return the cached rates
-until they are an hour old, then the next call fetches fresh ones.
+The first call fetches rates; later calls return the cached rates until they are
+an hour old, then the next call fetches fresh ones. Each source is only contacted
+once one of its pairs is asked for, so USDT rates work without OANDA credentials.
 
-Needs OANDA_API_TOKEN and OANDA_ACCOUNT_ID in collector/.env (see .env.example).
+Forex pairs need OANDA_API_TOKEN and OANDA_ACCOUNT_ID in collector/.env (see .env.example).
 Run from the collector/ directory:
 
     python -m market_data.oanda.rate_service
-    python -m market_data.oanda.rate_service EUR_USD USD_JPY
+    python -m market_data.oanda.rate_service EUR_USD USD_JPY USDT_THB USDT_KRW
 """
 
 import argparse
@@ -24,12 +27,15 @@ import re
 import threading
 import time
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from typing import Protocol
 
 import httpx
 from dotenv import load_dotenv
+
+from ..common.fx_quote import Quote
+from ..common.usdt_rates import UsdtRateClient
 
 log = logging.getLogger(__name__)
 
@@ -38,17 +44,18 @@ LIVE_URL = "https://api-fxtrade.oanda.com"
 
 MAJOR_PAIRS = ("EUR_USD", "GBP_USD", "USD_JPY", "USD_CHF", "AUD_USD", "USD_CAD", "NZD_USD")
 
+FOREX = "forex"  # OANDA
+USDT = "usdt"  # public crypto exchange APIs
 
-@dataclass(frozen=True)
-class Quote:
-    pair: str
-    bid: Decimal
-    ask: Decimal
-    time: datetime
 
-    @property
-    def spread(self) -> Decimal:
-        return self.ask - self.bid
+def source_for(pair: str) -> str:
+    return USDT if pair.startswith("USDT_") else FOREX
+
+
+class RateSource(Protocol):
+    def get_quotes(self, pairs: Iterable[str]) -> list[Quote]: ...
+
+    def close(self) -> None: ...
 
 
 def parse_time(value: str) -> datetime:
@@ -125,18 +132,18 @@ class OandaClient:
 
 
 class RateService:
-    """Shared, cached forex rates. All methods are class methods; don't instantiate it.
+    """Shared, cached exchange rates. All methods are class methods; don't instantiate it.
 
-    Rates for every pair requested so far are fetched together in one request.
-    Safe to call from several threads.
+    Rates for every pair requested so far are fetched together (one OANDA request for
+    all forex pairs; the majors come along with the first one). Safe to call from several threads.
     """
 
     REFRESH_SECONDS = 60 * 60  # refetch rates once they're an hour old
     RETRY_SECONDS = 60  # if a refresh fails, keep the old rates and retry after this
 
-    _client: OandaClient = None
+    _clients: dict[str, RateSource] = {}  # source -> client, created on first use
     _quotes: dict[str, Quote] = {}
-    _pairs: set[str] = set(MAJOR_PAIRS)
+    _tracked: dict[str, set[str]] = {FOREX: set(), USDT: set()}  # pairs refreshed each hour
     _next_refresh: float = 0.0  # time.monotonic() value; 0 = fetch on first call
     _lock = threading.Lock()
     _clock: Callable[[], float] = time.monotonic
@@ -154,7 +161,7 @@ class RateService:
         """Return cached quotes keyed by pair (default: the majors)."""
         wanted = list(dict.fromkeys(pairs if pairs is not None else MAJOR_PAIRS))  # dedupe, keep order
         with cls._lock:
-            new_pairs = set(wanted) - cls._pairs
+            new_pairs = {p for p in wanted if p not in cls._tracked[source_for(p)]}
             if new_pairs or cls._clock() >= cls._next_refresh:
                 cls._refresh(new_pairs)
             missing = set(wanted) - cls._quotes.keys()
@@ -169,45 +176,60 @@ class RateService:
             cls._refresh(set())
 
     @classmethod
-    def configure(cls, client: OandaClient) -> None:
-        """Use a specific client (e.g. in tests) and clear the cache."""
+    def configure(cls, client: RateSource, source: str = FOREX) -> None:
+        """Use a specific client for a source (e.g. in tests) and clear the cache."""
         with cls._lock:
-            cls._client = client
+            cls._clients[source] = client
             cls._clear()
 
     @classmethod
     def reset(cls) -> None:
-        """Clear the cache and client; the next call fetches from OANDA again."""
+        """Clear the cache and clients; the next call fetches again."""
         with cls._lock:
-            if cls._client:
-                cls._client.close()
-            cls._client = None
+            for client in cls._clients.values():
+                client.close()
+            cls._clients = {}
             cls._clear()
 
     @classmethod
     def _clear(cls) -> None:
         cls._quotes = {}
-        cls._pairs = set(MAJOR_PAIRS)
+        cls._tracked = {FOREX: set(), USDT: set()}
         cls._next_refresh = 0.0
 
     @classmethod
-    def _refresh(cls, new_pairs: set[str]) -> None:
-        """Fetch all tracked pairs. Caller must hold the lock."""
-        if cls._client is None:
-            cls._client = OandaClient.from_env()
-        pairs = cls._pairs | new_pairs
-        try:
-            quotes = cls._client.get_quotes(sorted(pairs))
-        except Exception:
-            if not cls._quotes:
-                raise  # nothing cached to fall back on
-            log.warning("Rate refresh failed; using cached rates", exc_info=True)
-            cls._next_refresh = cls._clock() + cls.RETRY_SECONDS
-            return
-        cls._pairs = pairs  # only track new pairs once OANDA has accepted them
-        cls._quotes.update({q.pair: q for q in quotes})
-        cls._next_refresh = cls._clock() + cls.REFRESH_SECONDS
+    def _client_for(cls, source: str) -> RateSource:
+        if source not in cls._clients:
+            cls._clients[source] = OandaClient.from_env() if source == FOREX else UsdtRateClient()
+        return cls._clients[source]
 
+    @classmethod
+    def _refresh(cls, new_pairs: set[str]) -> None:
+        """Fetch tracked pairs plus new ones from each source in use. Caller must hold the lock."""
+        wanted = {source: set(pairs) for source, pairs in cls._tracked.items()}
+        for pair in new_pairs:
+            wanted[source_for(pair)].add(pair)
+        if wanted[FOREX]:
+            wanted[FOREX] |= set(MAJOR_PAIRS)  # same request, so the majors are always on hand
+
+        failed, error = False, None
+        for source, pairs in wanted.items():
+            if not pairs:
+                continue  # never asked for: don't contact it (e.g. no OANDA credentials needed)
+            try:
+                quotes = cls._client_for(source).get_quotes(sorted(pairs))
+            except Exception as failure:
+                failed = True
+                if pairs & cls._quotes.keys():
+                    log.warning("%s rate refresh failed; using cached rates", source, exc_info=True)
+                else:
+                    error = error or failure  # nothing cached to fall back on
+                continue
+            cls._tracked[source] = pairs  # only track new pairs once the source has accepted them
+            cls._quotes.update({q.pair: q for q in quotes})
+        cls._next_refresh = cls._clock() + (cls.RETRY_SECONDS if failed else cls.REFRESH_SECONDS)
+        if error:
+            raise error
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)

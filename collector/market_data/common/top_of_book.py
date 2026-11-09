@@ -40,6 +40,9 @@ class TopOfBook:
     bid_quantity: Decimal
     ask_price: Decimal
     ask_quantity: Decimal
+    # Set when prices were converted with an exchange rate, e.g. "THB" for Bitkub's
+    # baht prices shown in USDT. None when the exchange quotes the pair directly.
+    converted_from: str | None = None
 
     def __post_init__(self) -> None:
         # Same codes and symbol format whichever exchange the data came from (XBT -> BTC).
@@ -50,7 +53,8 @@ class TopOfBook:
     def __str__(self) -> str:
         """e.g. '2026-11-09 14:55:18.261 UTC  OKX  BTC-USDT  bid 0.52 @ 81308.7 | ask 81308.8 x 0.82'"""
         time = f"{self.timestamp:%Y-%m-%d %H:%M:%S.%f}"[:-3]  # milliseconds
-        return (
+        text = (
             f"{time} UTC  {self.exchange:<10} {self.symbol:<12} "
             f"bid {self.bid_quantity} @ {self.bid_price}  |  ask {self.ask_price} x {self.ask_quantity}"
         )
+        return f"{text}  (converted from {self.converted_from})" if self.converted_from else text

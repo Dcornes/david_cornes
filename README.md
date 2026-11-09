@@ -5,7 +5,7 @@ FastAPI backend + Angular frontend, plus a separate market-data collector.
 ```
 backend/     website API (FastAPI, Python 3.12)
 frontend/    website UI (Angular 22, Node 22+)
-collector/   market-data code (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, OANDA); market_data/ is also used by the backend
+collector/   market-data code (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit, Bithumb, OANDA); market_data/ is also used by the backend
 ```
 
 ## Backend
@@ -22,7 +22,7 @@ fastapi dev app/main.py
 
 API runs at http://localhost:8000 — interactive docs at http://localhost:8000/docs.
 
-On startup the backend streams OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini and Bitfinex quotes and serves them to the `/markets` page:
+On startup the backend streams OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit and Bithumb quotes and serves them to the `/markets` page:
 
 - `GET /api/quotes` returns the latest snapshot for every pair.
 - `GET /api/quotes/stream` is a Server-Sent Events stream: a full snapshot of each pair, then `update` events with only what changed, at most 1 per second per pair (faster changes are combined, ending on the newest price). `status` events carry each exchange feed's health.
@@ -83,19 +83,25 @@ python -m market_data.bitstamp.order_book_stream BTC-USD ETH-USDT
 python -m market_data.coinbase.order_book_stream BTC-USD ETH-USDT
 python -m market_data.gemini.order_book_stream BTC-USD ETH-USDT
 python -m market_data.bitfinex.order_book_stream BTC-USDT ETH-USD
+python -m market_data.bitkub.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.upbit.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.bithumb.order_book_stream BTC-USDT ETH-USDT
 ```
 
-Best bid and ask across all eight exchanges, with the exchange each came from:
+Bitkub (Thai baht) and Upbit and Bithumb (Korean won) price their markets in a local currency; their clients convert to the pair you ask for (USDT here) with the rate service's USDT/THB and USDT/KRW rates. The markets page marks converted prices with an exchange-rate icon.
+
+Best bid and ask across all eleven exchanges, with the exchange each came from:
 
 ```bash
 python -m market_data.market_data_handler BTC-USDT ETH-USDT
 ```
 
-Get forex bid/ask quotes from OANDA (needs `OANDA_API_TOKEN` and `OANDA_ACCOUNT_ID` in `.env`; defaults to the major pairs):
+Get exchange rates, cached for an hour: forex from OANDA (needs `OANDA_API_TOKEN` and `OANDA_ACCOUNT_ID` in `.env`; defaults to the major pairs), and USDT_USD, USDT_THB and USDT_KRW from public crypto exchange APIs (no keys needed):
 
 ```bash
 python -m market_data.oanda.rate_service
 python -m market_data.oanda.rate_service EUR_USD GBP_JPY
+python -m market_data.oanda.rate_service USDT_USD USDT_THB USDT_KRW
 ```
 
 Run tests:
