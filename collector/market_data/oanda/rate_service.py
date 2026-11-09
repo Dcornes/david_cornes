@@ -1,5 +1,5 @@
 """Exchange rates, cached for an hour: forex from the OANDA v20 REST API, and USDT
-rates (USDT_USD, USDT_THB, USDT_KRW) from public crypto exchange APIs.
+rates (USDT_USD, USDT_THB, USDT_KRW, USDT_ZAR, USDT_AUD, USDT_IDR) from public crypto exchange APIs.
 
 Call it from any collector:
 
@@ -8,6 +8,9 @@ Call it from any collector:
     eur = RateService.get_quote("EUR_USD")     # Quote(pair, bid, ask, time)
     thb = RateService.get_quote("USDT_THB")    # baht for 1 USDT
     majors = RateService.get_quotes()          # {"EUR_USD": Quote, ...}
+
+    # Prices from one currency to another (through USDT), e.g. a baht bid/ask in USDT:
+    bid, ask = RateService.convert(bid_thb, ask_thb, "THB", "USDT")
 
 The first call fetches rates; later calls return the cached rates until they are
 an hour old, then the next call fetches fresh ones. Each source is only contacted
@@ -47,9 +50,19 @@ MAJOR_PAIRS = ("EUR_USD", "GBP_USD", "USD_JPY", "USD_CHF", "AUD_USD", "USD_CAD",
 FOREX = "forex"  # OANDA
 USDT = "usdt"  # public crypto exchange APIs
 
+BRIDGE = "USDT"  # conversions go through USDT: every USDT_<currency> rate links a currency to it
+
 
 def source_for(pair: str) -> str:
     return USDT if pair.startswith("USDT_") else FOREX
+
+
+def round_price(value: Decimal) -> Decimal:
+    """Converted prices have long decimals; keep a sensible number of them."""
+    step = Decimal("0.01") if value >= 100 else Decimal("0.0001") if value >= 1 else Decimal("0.00000001")
+    rounded = value.quantize(step).normalize()
+    # normalize() writes round numbers like 75000 as 7.5E+4; keep them as plain integers.
+    return rounded.quantize(Decimal(1)) if rounded.as_tuple().exponent > 0 else rounded
 
 
 class RateSource(Protocol):
@@ -168,6 +181,43 @@ class RateService:
             if missing:
                 raise KeyError(f"No rate available for {', '.join(sorted(missing))}")
             return {pair: cls._quotes[pair] for pair in wanted}
+
+    @staticmethod
+    def conversion_pairs(source: str, target: str) -> list[str]:
+        """Rates needed to convert prices from one currency to another, e.g. THB -> USDT: ["USDT_THB"]."""
+        if source == target:
+            return []
+        return [f"USDT_{currency}" for currency in (source, target) if currency != BRIDGE]
+
+    @classmethod
+    def can_convert(cls, source: str, target: str) -> bool:
+        """Whether rates exist to convert between these currencies (fetches them if needed)."""
+        try:
+            cls.get_quotes(cls.conversion_pairs(source, target))
+        except KeyError:
+            return False
+        return True
+
+    @classmethod
+    def convert(cls, bid: Decimal, ask: Decimal, source: str, target: str) -> tuple[Decimal, Decimal]:
+        """Convert a bid/ask from one currency to another, going through USDT.
+
+        E.g. a BTC bid/ask in THB -> in USDT, or KRW -> USD (KRW -> USDT -> USD).
+        Conservative: the bid uses the side of each rate that gives less, the ask the side
+        that costs more, so a converted price is never better than what you could get.
+        Raises KeyError if a rate isn't available. May make HTTP requests when rates are
+        due a refresh, so call it with asyncio.to_thread from async code.
+        """
+        if source == target:
+            return bid, ask
+        rates = cls.get_quotes(cls.conversion_pairs(source, target))
+        if source != BRIDGE:  # e.g. THB -> USDT: divide by baht per USDT
+            rate = rates[f"USDT_{source}"]
+            bid, ask = bid / rate.ask, ask / rate.bid
+        if target != BRIDGE:  # e.g. USDT -> USD: multiply by dollars per USDT
+            rate = rates[f"USDT_{target}"]
+            bid, ask = bid * rate.bid, ask * rate.ask
+        return round_price(bid), round_price(ask)
 
     @classmethod
     def refresh(cls) -> None:

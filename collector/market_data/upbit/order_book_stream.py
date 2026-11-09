@@ -1,8 +1,8 @@
 """Stream Upbit best bid/ask, converted from Korean won to the quote you ask for.
 
 Upbit's main markets are priced in KRW. Ask for BTC-USDT and the KRW prices are
-converted with RateService's USDT_KRW rate, which refreshes hourly (see
-common/conversion.py). BTC-KRW gives the unconverted prices.
+converted with RateService.convert (USDT_KRW rate, refreshed hourly).
+BTC-KRW gives the unconverted prices.
 
 Bithumb's WebSocket uses the same format, so its client reuses stream_krw_order_books.
 Run from the collector/ directory:
@@ -20,8 +20,9 @@ from decimal import Decimal
 import httpx
 from websockets.asyncio.client import connect
 
-from ..common.conversion import Target, convert, current_rates, targets_for
+from ..common.local_markets import Target, targets_for
 from ..common.top_of_book import TopOfBook, clean_decimal
+from ..oanda.rate_service import RateService
 
 EXCHANGE = "Upbit"
 LOCAL = "KRW"
@@ -95,9 +96,9 @@ async def _stream(exchange: str, ws_url: str, rest_url: str, symbols: tuple[str,
                 continue  # deeper levels changed, not the best ones
             last[market] = top
             timestamp = epoch_time(message["timestamp"]) if "timestamp" in message else received_at
-            rates = await current_rates(targets)  # cached; refreshed hourly
             for target in markets[market]:
-                bid, ask = convert(top[0], top[2], target, rates)
+                # Cached rates (refreshed hourly); in a thread since a refresh makes HTTP requests.
+                bid, ask = await asyncio.to_thread(RateService.convert, top[0], top[2], LOCAL, target.quote)
                 yield TopOfBook(
                     exchange, target.base, target.quote, timestamp, bid, top[1], ask, top[3], target.converted_from
                 )

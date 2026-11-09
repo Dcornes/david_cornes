@@ -8,9 +8,14 @@ from market_data.common.usdt_rates import (
     UsdtRateClient,
     bithumb_usdt_krw,
     bitkub_usdt_thb,
+    btcmarkets_usdt_aud,
     coinbase_usdt_usd,
+    independent_reserve_usdt_aud,
+    indodax_usdt_idr,
     kraken_usdt_usd,
+    luno_usdt_zar,
     upbit_usdt_krw,
+    valr_usdt_zar,
 )
 
 # Trimmed real responses.
@@ -20,6 +25,11 @@ RESPONSES = {
     "api.bitkub.com": [{"symbol": "USDT_THB", "highest_bid": "33.39", "lowest_ask": "33.4"}],
     "api.upbit.com": [{"market": "KRW-USDT", "timestamp": 1794258534925, "orderbook_units": [{"bid_price": 1354, "ask_price": 1355.0}]}],
     "api.bithumb.com": {"status": "0000", "data": {"timestamp": "1794258537778", "bids": [{"price": "1354"}], "asks": [{"price": "1355"}]}},
+    "api.valr.com": {"currencyPair": "USDTZAR", "askPrice": "16.5576", "bidPrice": "16.5575"},
+    "api.luno.com": {"pair": "USDTZAR", "timestamp": 1794262059388, "bid": "16.5867", "ask": "16.5906"},
+    "api.btcmarkets.net": {"marketId": "USDT-AUD", "bestBid": "1.441", "bestAsk": "1.4425"},
+    "api.independentreserve.com": {"CurrentHighestBidPrice": 1.44062, "CurrentLowestOfferPrice": 1.44202},
+    "indodax.com": {"ticker": {"buy": "18062", "sell": "18063", "server_time": 1794261868}},
 }
 
 
@@ -40,6 +50,11 @@ def http(fail: set[str] = frozenset()) -> httpx.Client:
         (bitkub_usdt_thb, "33.39", "33.4"),
         (upbit_usdt_krw, "1354", "1355"),
         (bithumb_usdt_krw, "1354", "1355"),
+        (valr_usdt_zar, "16.5575", "16.5576"),
+        (luno_usdt_zar, "16.5867", "16.5906"),
+        (btcmarkets_usdt_aud, "1.441", "1.4425"),
+        (independent_reserve_usdt_aud, "1.44062", "1.44202"),
+        (indodax_usdt_idr, "18062", "18063"),
     ],
 )
 def test_each_exchange_parses_best_bid_and_ask(fetch, bid, ask) -> None:

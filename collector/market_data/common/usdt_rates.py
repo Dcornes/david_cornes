@@ -1,4 +1,5 @@
-"""USDT exchange rates (USDT_USD, USDT_THB, USDT_KRW) from public crypto exchange APIs.
+"""USDT exchange rates (USDT_USD, USDT_THB, USDT_KRW, USDT_ZAR, USDT_AUD, USDT_IDR)
+from public crypto exchange APIs.
 
 OANDA only has regular currencies, so RateService uses this for pairs starting with
 USDT_. No API keys are needed. Each rate has a fallback exchange where one exists.
@@ -54,11 +55,45 @@ def bithumb_usdt_krw(http: httpx.Client) -> tuple[Decimal, Decimal, datetime]:
     return clean_decimal(data["bids"][0]["price"]), clean_decimal(data["asks"][0]["price"]), time
 
 
-# Price of 1 USDT in each currency; the first exchange is tried first.
+def valr_usdt_zar(http: httpx.Client) -> tuple[Decimal, Decimal, datetime]:
+    data = _get(http, "https://api.valr.com/v1/public/USDTZAR/marketsummary")
+    return clean_decimal(data["bidPrice"]), clean_decimal(data["askPrice"]), _now()
+
+
+def luno_usdt_zar(http: httpx.Client) -> tuple[Decimal, Decimal, datetime]:
+    data = _get(http, "https://api.luno.com/api/1/ticker", pair="USDTZAR")
+    time = datetime.fromtimestamp(data["timestamp"] / 1000, tz=timezone.utc)
+    return clean_decimal(data["bid"]), clean_decimal(data["ask"]), time
+
+
+def btcmarkets_usdt_aud(http: httpx.Client) -> tuple[Decimal, Decimal, datetime]:
+    data = _get(http, "https://api.btcmarkets.net/v3/markets/USDT-AUD/ticker")
+    return clean_decimal(data["bestBid"]), clean_decimal(data["bestAsk"]), _now()
+
+
+def independent_reserve_usdt_aud(http: httpx.Client) -> tuple[Decimal, Decimal, datetime]:
+    data = _get(
+        http, "https://api.independentreserve.com/Public/GetMarketSummary",
+        primaryCurrencyCode="usdt", secondaryCurrencyCode="aud",
+    )
+    return clean_decimal(str(data["CurrentHighestBidPrice"])), clean_decimal(str(data["CurrentLowestOfferPrice"])), _now()
+
+
+def indodax_usdt_idr(http: httpx.Client) -> tuple[Decimal, Decimal, datetime]:
+    ticker = _get(http, "https://indodax.com/api/ticker/usdtidr")["ticker"]
+    time = datetime.fromtimestamp(int(ticker["server_time"]), tz=timezone.utc)
+    return clean_decimal(ticker["buy"]), clean_decimal(ticker["sell"]), time  # buy = best bid, sell = best ask
+
+
+# Price of 1 USDT in each currency, from that country's own USDT market (so local
+# premiums mostly cancel out when converting). The first exchange is tried first.
 SOURCES: dict[str, list[Fetcher]] = {
     "USDT_USD": [coinbase_usdt_usd, kraken_usdt_usd],
     "USDT_THB": [bitkub_usdt_thb],
     "USDT_KRW": [upbit_usdt_krw, bithumb_usdt_krw],
+    "USDT_ZAR": [valr_usdt_zar, luno_usdt_zar],
+    "USDT_AUD": [btcmarkets_usdt_aud, independent_reserve_usdt_aud],
+    "USDT_IDR": [indodax_usdt_idr],
 }
 
 

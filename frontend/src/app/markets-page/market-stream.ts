@@ -104,8 +104,8 @@ export class MarketStream implements OnDestroy {
       quotes.set(quote.exchange, quote);
     }
     const { changed, removed, ...prices } = update;
-    // Same order as the server's snapshots: by exchange name.
-    const exchanges = [...quotes.values()].sort((a, b) => (a.exchange < b.exchange ? -1 : 1));
+    // Same order as the server's snapshots: by exchange name, ignoring case.
+    const exchanges = [...quotes.values()].sort((a, b) => (a.exchange.toLowerCase() < b.exchange.toLowerCase() ? -1 : 1));
     this.receive({ ...prices, exchanges });
   }
 

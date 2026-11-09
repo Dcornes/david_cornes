@@ -1,7 +1,7 @@
 """Stream Bithumb best bid/ask, converted from Korean won to the quote you ask for.
 
 Bithumb's WebSocket uses the same format as Upbit's, so this reuses the Upbit client
-with Bithumb's addresses. KRW prices are converted with RateService's USDT_KRW rate.
+with Bithumb's addresses. KRW prices are converted with RateService.convert (USDT_KRW rate).
 Run from the collector/ directory:
 
     python -m market_data.bithumb.order_book_stream BTC-USDT ETH-USDT

@@ -11,7 +11,7 @@
 
   <label class="option">
     <input type="checkbox" [checked]="showConverted()" (change)="setShowConverted($any($event.target).checked)" />
-    Show prices converted from THB or KRW
+    Show prices converted from local currencies
     <span class="converted" aria-hidden="true">
       <svg viewBox="0 0 16 16"><path d="M2 5h10M9 2l3 3-3 3M14 11H4M7 8l-3 3 3 3" /></svg>
     </span>
@@ -164,7 +164,7 @@
       <span class="converted" aria-hidden="true">
         <svg viewBox="0 0 16 16"><path d="M2 5h10M9 2l3 3-3 3M14 11H4M7 8l-3 3 3 3" /></svg>
       </span>
-      Converted from a local currency (THB or KRW) with an hourly exchange rate.
+      Converted from a local currency (THB, KRW, ZAR, AUD or IDR) with an hourly exchange rate.
     </span>
   </footer>
 </div>

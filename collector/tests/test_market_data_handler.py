@@ -200,3 +200,11 @@ def test_feed_status_stopped_without_reconnect() -> None:
 
     assert [c[0].state for c in changes] == ["live", "stopped"]
     assert changes[-1][0].to_dict()["message"] == "Feed ended"
+
+
+def test_snapshot_lists_exchanges_alphabetically_ignoring_case() -> None:
+    h, _ = handler()
+    for exchange in ("OKX", "BTC Markets", "Binance.US", "bitFlyer"):
+        h.on_quote(quote(exchange, "100", "101"))
+    names = [q["exchange"] for q in h.snapshot("BTC-USDT").to_dict()["exchanges"]]
+    assert names == ["Binance.US", "bitFlyer", "BTC Markets", "OKX"]

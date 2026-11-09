@@ -5,7 +5,7 @@ FastAPI backend + Angular frontend, plus a separate market-data collector.
 ```
 backend/     website API (FastAPI, Python 3.12)
 frontend/    website UI (Angular 22, Node 22+)
-collector/   market-data code (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit, Bithumb, OANDA); market_data/ is also used by the backend
+collector/   market-data code (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit, Bithumb, KuCoin, Gate, MEXC, Korbit, Coinone, VALR, BTC Markets, Indodax, OANDA); market_data/ is also used by the backend
 ```
 
 ## Backend
@@ -22,7 +22,7 @@ fastapi dev app/main.py
 
 API runs at http://localhost:8000 — interactive docs at http://localhost:8000/docs.
 
-On startup the backend streams OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit and Bithumb quotes and serves them to the `/markets` page:
+On startup the backend streams OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit, Bithumb, KuCoin, Gate, MEXC, Korbit, Coinone, VALR, BTC Markets and Indodax quotes and serves them to the `/markets` page:
 
 - `GET /api/quotes` returns the latest snapshot for every pair.
 - `GET /api/quotes/stream` is a Server-Sent Events stream: a full snapshot of each pair, then `update` events with only what changed, at most 1 per second per pair (faster changes are combined, ending on the newest price). `status` events carry each exchange feed's health.
@@ -86,17 +86,25 @@ python -m market_data.bitfinex.order_book_stream BTC-USDT ETH-USD
 python -m market_data.bitkub.order_book_stream BTC-USDT ETH-USDT
 python -m market_data.upbit.order_book_stream BTC-USDT ETH-USDT
 python -m market_data.bithumb.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.kucoin.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.gate.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.mexc.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.korbit.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.coinone.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.valr.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.btcmarkets.order_book_stream BTC-USDT ETH-USDT
+python -m market_data.indodax.order_book_stream BTC-USDT ETH-USDT
 ```
 
-Bitkub (Thai baht) and Upbit and Bithumb (Korean won) price their markets in a local currency; their clients convert to the pair you ask for (USDT here) with the rate service's USDT/THB and USDT/KRW rates. The markets page marks converted prices with an exchange-rate icon.
+Bitkub (Thai baht), Upbit, Bithumb, Korbit and Coinone (Korean won), VALR (South African rand), BTC Markets (Australian dollar) and Indodax (Indonesian rupiah) price their markets in a local currency; their clients convert to the pair you ask for (USDT here) with `RateService.convert`, which goes through USDT using each country's own USDT market as the rate (USDT/THB, USDT/KRW, USDT/ZAR, USDT/AUD, USDT/IDR). The markets page marks converted prices with an exchange-rate icon.
 
-Best bid and ask across all eleven exchanges, with the exchange each came from:
+Best bid and ask across all nineteen exchanges, with the exchange each came from:
 
 ```bash
 python -m market_data.market_data_handler BTC-USDT ETH-USDT
 ```
 
-Get exchange rates, cached for an hour: forex from OANDA (needs `OANDA_API_TOKEN` and `OANDA_ACCOUNT_ID` in `.env`; defaults to the major pairs), and USDT_USD, USDT_THB and USDT_KRW from public crypto exchange APIs (no keys needed):
+Get exchange rates, cached for an hour: forex from OANDA (needs `OANDA_API_TOKEN` and `OANDA_ACCOUNT_ID` in `.env`; defaults to the major pairs), and USDT_USD, USDT_THB, USDT_KRW, USDT_ZAR, USDT_AUD and USDT_IDR from public crypto exchange APIs (no keys needed):
 
 ```bash
 python -m market_data.oanda.rate_service

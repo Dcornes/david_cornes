@@ -1,7 +1,7 @@
 """Stream Bitkub best bid/ask, converted from Thai baht to the quote you ask for.
 
 Bitkub's markets are priced in THB. Ask for BTC-USDT and the THB prices are converted
-with RateService's USDT_THB rate, which refreshes hourly (see common/conversion.py).
+with RateService.convert (USDT_THB rate, refreshed hourly).
 BTC-THB gives the unconverted prices. Run from the collector/ directory:
 
     python -m market_data.bitkub.order_book_stream BTC-USDT ETH-USDT
@@ -17,8 +17,9 @@ from decimal import Decimal
 import httpx
 from websockets.asyncio.client import connect
 
-from ..common.conversion import Target, convert, current_rates, targets_for
+from ..common.local_markets import Target, targets_for
 from ..common.top_of_book import TopOfBook
+from ..oanda.rate_service import RateService
 
 EXCHANGE = "Bitkub"
 LOCAL = "THB"
@@ -64,9 +65,9 @@ async def stream_order_books(
             if last.get(stream) == top:
                 continue  # ticker also updates for trades and 24h stats
             last[stream] = top
-            rates = await current_rates(targets)  # cached; refreshed hourly
             for target in streams[stream]:
-                bid, ask = convert(top[0], top[2], target, rates)
+                # Cached rates (refreshed hourly); in a thread since a refresh makes HTTP requests.
+                bid, ask = await asyncio.to_thread(RateService.convert, top[0], top[2], LOCAL, target.quote)
                 yield TopOfBook(
                     EXCHANGE, target.base, target.quote, received_at, bid, top[1], ask, top[3], target.converted_from
                 )

@@ -4,7 +4,7 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from market_data.oanda.rate_service import OandaClient, Quote, RateService, parse_prices, parse_time
+from market_data.oanda.rate_service import OandaClient, Quote, RateService, parse_prices, parse_time, round_price
 
 SAMPLE = {
     "time": "2026-11-09T14:30:00.123456789Z",
@@ -204,3 +204,82 @@ def test_rejected_new_pair_is_not_tracked(fake) -> None:
     fake.now["t"] += RateService.REFRESH_SECONDS
     RateService.get_quotes()
     assert "BAD_PAIR" not in fake.calls[-1]
+
+
+# --- Converting prices between currencies ------------------------------------
+
+
+class FixedRates:
+    """A USDT source with set rates (bid/ask per pair)."""
+
+    RATES = {
+        "USDT_THB": ("33.39", "33.40"),
+        "USDT_KRW": ("1354", "1355"),
+        "USDT_USD": ("0.99875", "0.99876"),
+    }
+
+    def get_quotes(self, pairs):
+        return [Quote(p, Decimal(self.RATES[p][0]), Decimal(self.RATES[p][1]), TIME) for p in pairs if p in self.RATES]
+
+    def close(self) -> None:
+        pass
+
+
+@pytest.fixture
+def rates():
+    RateService.configure(FixedRates(), source="usdt")
+    yield
+    RateService.reset()
+
+
+BID_THB, ASK_THB = Decimal("2499774.37"), Decimal("2500735.36")  # real Bitkub BTC prices
+
+
+def test_conversion_pairs_go_through_usdt() -> None:
+    assert RateService.conversion_pairs("THB", "USDT") == ["USDT_THB"]
+    assert RateService.conversion_pairs("USDT", "KRW") == ["USDT_KRW"]
+    assert RateService.conversion_pairs("KRW", "USD") == ["USDT_KRW", "USDT_USD"]
+    assert RateService.conversion_pairs("THB", "THB") == []
+
+
+def test_convert_to_usdt_is_conservative(rates) -> None:
+    bid, ask = RateService.convert(BID_THB, ASK_THB, "THB", "USDT")
+    assert bid == round_price(BID_THB / Decimal("33.40"))  # bid divided by the higher rate: less USDT
+    assert ask == round_price(ASK_THB / Decimal("33.39"))  # ask divided by the lower rate: costs more
+    assert (bid, ask) == (Decimal("74843.54"), Decimal("74894.74"))
+
+
+def test_convert_krw_to_usdt(rates) -> None:
+    bid, ask = RateService.convert(Decimal("101484000"), Decimal("101485000"), "KRW", "USDT")
+    assert (bid, ask) == (Decimal("74895.94"), Decimal("74951.99"))  # 101484000 / 1355, 101485000 / 1354
+
+
+def test_convert_between_two_local_currencies_goes_through_usdt(rates) -> None:
+    bid, ask = RateService.convert(BID_THB, ASK_THB, "THB", "USD")
+    assert bid == round_price(BID_THB / Decimal("33.40") * Decimal("0.99875"))
+    assert ask == round_price(ASK_THB / Decimal("33.39") * Decimal("0.99876"))
+
+
+def test_convert_from_usdt(rates) -> None:
+    assert RateService.convert(Decimal("100"), Decimal("101"), "USDT", "KRW") == (Decimal("135400"), Decimal("136855"))
+
+
+def test_same_currency_is_unchanged(rates) -> None:
+    assert RateService.convert(BID_THB, ASK_THB, "THB", "THB") == (BID_THB, ASK_THB)
+
+
+def test_can_convert(rates) -> None:
+    assert RateService.can_convert("THB", "USDT")
+    assert RateService.can_convert("KRW", "USD")
+    assert not RateService.can_convert("THB", "EUR")  # no USDT_EUR source
+    with pytest.raises(KeyError):
+        RateService.convert(BID_THB, ASK_THB, "THB", "EUR")
+
+
+@pytest.mark.parametrize(
+    "value, rounded",
+    [("74843.5412", "74843.54"), ("12.345678", "12.3457"), ("0.0123456789", "0.01234568"), ("100.10", "100.1"),
+     ("75000.0012", "75000"), ("1000", "1000")],  # round numbers stay plain, not 7.5E+4
+)
+def test_round_price(value: str, rounded: str) -> None:
+    assert round_price(Decimal(value)) == Decimal(rounded)

@@ -1,4 +1,4 @@
-"""Combine quotes from every exchange (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit, Bithumb) into one best bid / best ask per pair.
+"""Combine quotes from every exchange (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit, Bithumb, KuCoin, Gate, MEXC, Korbit, Coinone, VALR, BTC Markets, Indodax) into one best bid / best ask per pair.
 
 Run from the collector/ directory:
 
@@ -25,19 +25,35 @@ from .bithumb.order_book_stream import EXCHANGE as BITHUMB
 from .bithumb.order_book_stream import stream_order_books as bithumb_stream
 from .bitstamp.order_book_stream import EXCHANGE as BITSTAMP
 from .bitstamp.order_book_stream import stream_order_books as bitstamp_stream
+from .btcmarkets.order_book_stream import EXCHANGE as BTCMARKETS
+from .btcmarkets.order_book_stream import stream_order_books as btcmarkets_stream
 from .coinbase.order_book_stream import EXCHANGE as COINBASE
 from .coinbase.order_book_stream import stream_order_books as coinbase_stream
+from .coinone.order_book_stream import EXCHANGE as COINONE
+from .coinone.order_book_stream import stream_order_books as coinone_stream
 from .common.top_of_book import TopOfBook, split_symbol
 from .cryptocom.order_book_stream import EXCHANGE as CRYPTOCOM
 from .cryptocom.order_book_stream import stream_order_books as cryptocom_stream
+from .gate.order_book_stream import EXCHANGE as GATE
+from .gate.order_book_stream import stream_order_books as gate_stream
 from .gemini.order_book_stream import EXCHANGE as GEMINI
 from .gemini.order_book_stream import stream_order_books as gemini_stream
+from .indodax.order_book_stream import EXCHANGE as INDODAX
+from .indodax.order_book_stream import stream_order_books as indodax_stream
+from .korbit.order_book_stream import EXCHANGE as KORBIT
+from .korbit.order_book_stream import stream_order_books as korbit_stream
 from .kraken.order_book_stream import EXCHANGE as KRAKEN
 from .kraken.order_book_stream import stream_order_books as kraken_stream
+from .kucoin.order_book_stream import EXCHANGE as KUCOIN
+from .kucoin.order_book_stream import stream_order_books as kucoin_stream
+from .mexc.order_book_stream import EXCHANGE as MEXC
+from .mexc.order_book_stream import stream_order_books as mexc_stream
 from .okx.order_book_stream import EXCHANGE as OKX
 from .okx.order_book_stream import stream_order_books as okx_stream
 from .upbit.order_book_stream import EXCHANGE as UPBIT
 from .upbit.order_book_stream import stream_order_books as upbit_stream
+from .valr.order_book_stream import EXCHANGE as VALR
+from .valr.order_book_stream import stream_order_books as valr_stream
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +72,14 @@ DEFAULT_STREAMS: dict[str, Stream] = {
     "bitkub": bitkub_stream,  # THB prices converted to USDT
     "upbit": upbit_stream,  # KRW prices converted to USDT
     "bithumb": bithumb_stream,  # KRW prices converted to USDT
+    "kucoin": kucoin_stream,
+    "gate": gate_stream,
+    "mexc": mexc_stream,
+    "korbit": korbit_stream,  # KRW prices converted to USDT
+    "coinone": coinone_stream,  # KRW prices converted to USDT
+    "valr": valr_stream,  # ZAR prices converted to USDT
+    "btcmarkets": btcmarkets_stream,  # AUD prices converted to USDT
+    "indodax": indodax_stream,  # IDR prices converted to USDT (polled)
 }
 
 # Display name for each stream, shown in feed statuses.
@@ -71,6 +95,14 @@ EXCHANGE_NAMES = {
     "bitkub": BITKUB,
     "upbit": UPBIT,
     "bithumb": BITHUMB,
+    "kucoin": KUCOIN,
+    "gate": GATE,
+    "mexc": MEXC,
+    "korbit": KORBIT,
+    "coinone": COINONE,
+    "valr": VALR,
+    "btcmarkets": BTCMARKETS,
+    "indodax": INDODAX,
 }
 
 # connecting: first connection, no quotes yet; live: quotes arriving;
@@ -147,7 +179,7 @@ class MarketSnapshot:
                     "timestamp": q.timestamp.isoformat(),
                     "converted_from": q.converted_from,  # e.g. "THB" when an exchange rate was used
                 }
-                for _, q in sorted(self.quotes.items())
+                for _, q in sorted(self.quotes.items(), key=lambda item: item[0].lower())  # A-Z, ignoring case
             ],
             "best_bid": best
             and {"price": str(best.bid_price), "quantity": str(best.bid_quantity), "exchange": best.bid_exchange},
