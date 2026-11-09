@@ -5,7 +5,7 @@ FastAPI backend + Angular frontend, plus a separate market-data collector.
 ```
 backend/     website API (FastAPI, Python 3.12)
 frontend/    website UI (Angular 22, Node 22+)
-collector/   market-data code (OKX, Kraken, Binance.US, OANDA); market_data/ is also used by the backend
+collector/   market-data code (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, OANDA); market_data/ is also used by the backend
 ```
 
 ## Backend
@@ -22,11 +22,12 @@ fastapi dev app/main.py
 
 API runs at http://localhost:8000 — interactive docs at http://localhost:8000/docs.
 
-On startup the backend streams OKX, Kraken and Binance.US quotes and serves them to the `/markets` page:
+On startup the backend streams OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini and Bitfinex quotes and serves them to the `/markets` page:
 
 - `GET /api/quotes` returns the latest snapshot for every pair.
-- `GET /api/quotes/stream` is a Server-Sent Events stream with a message when a pair's prices change, at most 4 per second per pair (faster changes are combined, ending on the newest price).
-- `QUOTE_SYMBOLS` sets the pairs (default `BTC-USDT,ETH-USDT,SOL-USDT`).
+- `GET /api/quotes/stream` is a Server-Sent Events stream: a full snapshot of each pair, then `update` events with only what changed, at most 1 per second per pair (faster changes are combined, ending on the newest price). `status` events carry each exchange feed's health.
+- `GET /api/quotes/status` returns each exchange feed's health (connecting, live, reconnecting or stopped).
+- `QUOTE_SYMBOLS` sets the pairs (default `BTC-USDT,ETH-USDT`).
 - `MARKET_DATA_ENABLED=0` turns it off.
 
 Run tests:
@@ -77,9 +78,14 @@ Stream live order books (public data, no keys needed); Ctrl+C to stop:
 python -m market_data.okx.order_book_stream BTC-USDT ETH-USDT --channel books5
 python -m market_data.kraken.order_book_stream BTC-USD ETH-USD
 python -m market_data.binance.order_book_stream BTC-USDT ETH-USD
+python -m market_data.cryptocom.order_book_stream BTC-USDT ETH-USD
+python -m market_data.bitstamp.order_book_stream BTC-USD ETH-USDT
+python -m market_data.coinbase.order_book_stream BTC-USD ETH-USDT
+python -m market_data.gemini.order_book_stream BTC-USD ETH-USDT
+python -m market_data.bitfinex.order_book_stream BTC-USDT ETH-USD
 ```
 
-Best bid and ask across all three exchanges, with the exchange each came from:
+Best bid and ask across all eight exchanges, with the exchange each came from:
 
 ```bash
 python -m market_data.market_data_handler BTC-USDT ETH-USDT

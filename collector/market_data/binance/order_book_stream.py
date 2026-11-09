@@ -12,12 +12,11 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
-from decimal import Decimal
 
 import httpx
 from websockets.asyncio.client import connect
 
-from ..common.top_of_book import TopOfBook, split_symbol
+from ..common.top_of_book import TopOfBook, clean_decimal, split_symbol
 
 EXCHANGE = "Binance.US"
 
@@ -46,12 +45,6 @@ async def fetch_pairs(binance_symbols: list[str], rest_url: str = REST_URL) -> d
     if response.is_error:
         raise RuntimeError(f"Binance error for {', '.join(binance_symbols)}: {response.json().get('msg')}")
     return {s["symbol"]: (s["baseAsset"], s["quoteAsset"]) for s in response.json()["symbols"]}
-
-
-def clean_decimal(value: str) -> Decimal:
-    """Binance pads numbers ("74818.01000000"); drop the trailing zeros."""
-    number = Decimal(value).normalize()
-    return number.quantize(Decimal(1)) if number.as_tuple().exponent > 0 else number
 
 
 def parse_book_ticker(message: dict, pairs: dict[str, tuple[str, str]], received_at: datetime) -> TopOfBook:

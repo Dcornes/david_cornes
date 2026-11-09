@@ -1,4 +1,4 @@
-"""Combine OKX, Kraken and Binance.US quotes into one best bid / best ask per pair.
+"""Combine quotes from every exchange (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex) into one best bid / best ask per pair.
 
 Run from the collector/ directory:
 
@@ -10,12 +10,27 @@ import argparse
 import asyncio
 import logging
 from collections.abc import AsyncIterator, Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Literal
 
+from .binance.order_book_stream import EXCHANGE as BINANCE
 from .binance.order_book_stream import stream_order_books as binance_stream
+from .bitfinex.order_book_stream import EXCHANGE as BITFINEX
+from .bitfinex.order_book_stream import stream_order_books as bitfinex_stream
+from .bitstamp.order_book_stream import EXCHANGE as BITSTAMP
+from .bitstamp.order_book_stream import stream_order_books as bitstamp_stream
+from .coinbase.order_book_stream import EXCHANGE as COINBASE
+from .coinbase.order_book_stream import stream_order_books as coinbase_stream
 from .common.top_of_book import TopOfBook, split_symbol
+from .cryptocom.order_book_stream import EXCHANGE as CRYPTOCOM
+from .cryptocom.order_book_stream import stream_order_books as cryptocom_stream
+from .gemini.order_book_stream import EXCHANGE as GEMINI
+from .gemini.order_book_stream import stream_order_books as gemini_stream
+from .kraken.order_book_stream import EXCHANGE as KRAKEN
 from .kraken.order_book_stream import stream_order_books as kraken_stream
+from .okx.order_book_stream import EXCHANGE as OKX
 from .okx.order_book_stream import stream_order_books as okx_stream
 
 log = logging.getLogger(__name__)
@@ -27,7 +42,41 @@ DEFAULT_STREAMS: dict[str, Stream] = {
     "okx": okx_stream,
     "kraken": kraken_stream,
     "binance": binance_stream,
+    "cryptocom": cryptocom_stream,
+    "bitstamp": bitstamp_stream,
+    "coinbase": coinbase_stream,
+    "gemini": gemini_stream,
+    "bitfinex": bitfinex_stream,
 }
+
+# Display name for each stream, shown in feed statuses.
+EXCHANGE_NAMES = {
+    "okx": OKX,
+    "kraken": KRAKEN,
+    "binance": BINANCE,
+    "cryptocom": CRYPTOCOM,
+    "bitstamp": BITSTAMP,
+    "coinbase": COINBASE,
+    "gemini": GEMINI,
+    "bitfinex": BITFINEX,
+}
+
+# connecting: first connection, no quotes yet; live: quotes arriving;
+# reconnecting: the feed stopped and will be retried; stopped: it won't be retried.
+FeedState = Literal["connecting", "live", "reconnecting", "stopped"]
+
+
+@dataclass(frozen=True)
+class FeedStatus:
+    """Health of one exchange's feed."""
+
+    exchange: str
+    state: FeedState
+    message: str = ""  # why it stopped, for reconnecting / stopped
+    since: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self) -> dict:
+        return {"exchange": self.exchange, "state": self.state, "message": self.message, "since": self.since.isoformat()}
 
 
 @dataclass(frozen=True)
@@ -102,6 +151,8 @@ class MarketDataHandler:
     Keeps the latest TopOfBook from each exchange per pair. Whenever any exchange's
     bid or ask price changes for a pair, it calls on_update with a MarketSnapshot
     (prints by default). Quantity-only changes are skipped; they're too frequent.
+    Whenever an exchange's feed changes state (see FeedStatus), it calls on_status
+    with every feed's status.
     """
 
     RECONNECT_MIN_SECONDS = 5
@@ -114,6 +165,7 @@ class MarketDataHandler:
         on_update: Callable[[MarketSnapshot], None] = print,
         *,
         reconnect: bool = False,
+        on_status: Callable[[list[FeedStatus]], None] | None = None,
     ) -> None:
         self.symbols = ["-".join(split_symbol(s)) for s in symbols]  # e.g. xbt/usdt -> BTC-USDT
         self.streams = dict(streams)
@@ -121,6 +173,21 @@ class MarketDataHandler:
         self.reconnect = reconnect  # restart a feed after it stops (for long-running use)
         self._quotes: dict[str, dict[str, TopOfBook]] = {}  # symbol -> exchange -> latest quote
         self._shown: dict[str, tuple] = {}  # prices last sent per symbol
+        self.on_status = on_status
+        self._status = {name: FeedStatus(EXCHANGE_NAMES.get(name, name), "connecting") for name in self.streams}
+
+    def statuses(self) -> list[FeedStatus]:
+        """Current health of every exchange's feed."""
+        return list(self._status.values())
+
+    def _set_status(self, name: str, state: FeedState, message: str = "") -> None:
+        current = self._status[name]
+        if (current.state, current.message) == (state, message):
+            return
+        self._status[name] = FeedStatus(current.exchange, state, message)
+        log.info("%s feed %s%s", current.exchange, state, f": {message}" if message else "")
+        if self.on_status:
+            self.on_status(self.statuses())
 
     def on_quote(self, quote: TopOfBook) -> BestBidOffer | None:
         """Take a quote from any exchange and return the updated best bid/offer for its pair."""
@@ -168,17 +235,23 @@ class MarketDataHandler:
             exchanges_seen: set[str] = set()
             try:
                 async for quote in stream(*self.symbols):
+                    if self._status[name].state != "live":
+                        self._set_status(name, "live")
                     exchanges_seen.add(quote.exchange)
                     self.on_quote(quote)
                     delay = self.RECONNECT_MIN_SECONDS  # healthy again
                 log.warning("%s feed ended", name)
+                reason = "Feed ended"
             except Exception as error:
                 log.error("%s feed stopped: %s", name, error)
+                reason = str(error) or type(error).__name__
             finally:
                 for exchange in exchanges_seen:  # don't show its old prices as current
                     self.remove_exchange(exchange)
             if not self.reconnect:
+                self._set_status(name, "stopped", reason)
                 return
+            self._set_status(name, "reconnecting", reason)  # stays so until quotes arrive again
             log.info("Reconnecting %s in %ss", name, delay)
             await asyncio.sleep(delay)
             delay = min(delay * 2, self.RECONNECT_MAX_SECONDS)

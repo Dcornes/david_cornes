@@ -1,22 +1,13 @@
 <div class="page">
   <header class="topbar">
     <h1>
-      <a routerLink="/">David Cornes,</a>
+      <a routerLink="/">David Cornes</a>
       <span class="muted">Live markets</span>
     </h1>
     <nav aria-label="Primary">
       <a routerLink="/">Résumé</a>
     </nav>
   </header>
-
-  <p class="status" [class]="market.status()" role="status">
-    <span class="dot" aria-hidden="true"></span>
-    @switch (market.status()) {
-      @case ('live') { Live: OKX, Kraken and Binance.US }
-      @case ('reconnecting') { Reconnecting… }
-      @default { Connecting… }
-    }
-  </p>
 
   <section aria-labelledby="crossed-heading">
     <h2 id="crossed-heading">Crossed markets</h2>
@@ -102,7 +93,7 @@
                     {{ q.ask }}
                   </td>
                   <td class="num muted">{{ q.ask_quantity }}</td>
-                  <td class="num muted">{{ q.timestamp | date: 'HH:mm:ss.SSS' }}</td>
+                  <td class="num muted">{{ q.timestamp | date: 'HH:mm:ss.SSS' }} {{ q.timestamp | timeZone }}</td>
                 </tr>
               }
             </tbody>
@@ -117,6 +108,37 @@
       <p class="muted empty">Waiting for the first prices…</p>
     }
   }
+
+  <section class="health" aria-labelledby="health-heading">
+    <h2 id="health-heading">Status</h2>
+    <p class="status" [class]="market.status()" role="status">
+      <span class="dot" aria-hidden="true"></span>
+      @switch (market.status()) {
+        @case ('live') { Connected to the server }
+        @case ('reconnecting') { Reconnecting to the server… }
+        @default { Connecting to the server… }
+      }
+    </p>
+    <!-- Fixed columns and row heights, so changing states don't move anything. -->
+    <ul class="feeds">
+      @for (f of feedRows(); track f.exchange) {
+        <li [class]="f.view">
+          <span class="dot" aria-hidden="true"></span>
+          <strong class="name">{{ f.exchange }}</strong>
+          <span class="state">{{ f.label }}</span>
+          <span class="detail muted" [title]="f.message">
+            @if (f.view === 'reconnecting' || f.view === 'stopped') {
+              {{ f.message }} · since {{ f.since | date: 'HH:mm:ss' }} {{ f.since | timeZone }}
+            } @else if (f.lastUpdate) {
+              Last update {{ f.lastUpdate | date: 'HH:mm:ss' }} {{ f.lastUpdate | timeZone }}
+            }
+          </span>
+        </li>
+      } @empty {
+        <li class="muted">Waiting for exchange status…</li>
+      }
+    </ul>
+  </section>
 
   <footer class="footer muted">
     Best bid and ask are highlighted. Prices turn green or red with their last move.

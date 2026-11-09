@@ -26,6 +26,17 @@ export interface MarketSnapshot {
   crossed: boolean;
 }
 
+/** Sent as an `update` event after the first snapshot: only what changed in a pair. */
+export interface MarketUpdate {
+  symbol: string;
+  changed: ExchangeQuote[]; // exchanges whose quote changed (or that are new)
+  removed: string[]; // exchanges that dropped out
+  best_bid: BestPrice | null;
+  best_ask: BestPrice | null;
+  spread: string | null;
+  crossed: boolean;
+}
+
 /** -1 = last move was down, 1 = up, 0 = no move seen yet. */
 export type Direction = -1 | 0 | 1;
 
@@ -36,12 +47,24 @@ export interface PriceMoves {
 
 export type StreamStatus = 'connecting' | 'live' | 'reconnecting';
 
+export type FeedState = 'connecting' | 'live' | 'reconnecting' | 'stopped';
+
+/** Health of one exchange's feed on the server, sent as a `status` event. */
+export interface FeedStatus {
+  exchange: string;
+  state: FeedState;
+  message: string; // why it stopped, for reconnecting / stopped
+  since: string; // when it entered this state
+}
+
 /** Live market snapshots from the backend's Server-Sent Events stream. Provide it per page. */
 @Injectable()
 export class MarketStream implements OnDestroy {
   private readonly snapshotsBySymbol = signal<Record<string, MarketSnapshot>>({});
   /** symbol -> exchange -> direction of the last bid/ask price change */
   private readonly movesBySymbol = signal<Record<string, Record<string, PriceMoves>>>({});
+  /** exchange -> time of its newest quote (ms since epoch) */
+  private readonly lastQuoteAt = signal<Record<string, number>>({});
   private source?: EventSource;
 
   readonly status = signal<StreamStatus>('connecting');
@@ -50,6 +73,8 @@ export class MarketStream implements OnDestroy {
   );
   readonly crossed = computed(() => this.snapshots().filter((s) => s.crossed));
   readonly moves = this.movesBySymbol.asReadonly();
+  readonly feeds = signal<FeedStatus[]>([]);
+  readonly lastUpdates = this.lastQuoteAt.asReadonly();
 
   connect(url = '/api/quotes/stream'): void {
     this.source?.close();
@@ -59,6 +84,27 @@ export class MarketStream implements OnDestroy {
     // EventSource reconnects by itself; just show that it's trying.
     this.source.onerror = () => this.status.set('reconnecting');
     this.source.onmessage = (event: MessageEvent<string>) => this.receive(JSON.parse(event.data));
+    this.source.addEventListener('update', (event) => this.applyUpdate(JSON.parse((event as MessageEvent<string>).data)));
+    this.source.addEventListener('status',(event) => this.feeds.set(JSON.parse((event as MessageEvent<string>).data)));
+  }
+
+  /** Merge an update into the pair's last snapshot. The server always sends a full snapshot first. */
+  applyUpdate(update: MarketUpdate): void {
+    const previous = this.snapshotsBySymbol()[update.symbol];
+    if (!previous) {
+      return;
+    }
+    const quotes = new Map(previous.exchanges.map((q) => [q.exchange, q]));
+    for (const exchange of update.removed) {
+      quotes.delete(exchange);
+    }
+    for (const quote of update.changed) {
+      quotes.set(quote.exchange, quote);
+    }
+    const { changed, removed, ...prices } = update;
+    // Same order as the server's snapshots: by exchange name.
+    const exchanges = [...quotes.values()].sort((a, b) => (a.exchange < b.exchange ? -1 : 1));
+    this.receive({ ...prices, exchanges });
   }
 
   receive(snapshot: MarketSnapshot): void {
@@ -75,6 +121,13 @@ export class MarketStream implements OnDestroy {
     }
     this.snapshotsBySymbol.update((all) => ({ ...all, [snapshot.symbol]: snapshot }));
     this.movesBySymbol.update((all) => ({ ...all, [snapshot.symbol]: newMoves }));
+    this.lastQuoteAt.update((all) => {
+      const next = { ...all };
+      for (const quote of snapshot.exchanges) {
+        next[quote.exchange] = Math.max(next[quote.exchange] ?? 0, Date.parse(quote.timestamp));
+      }
+      return next;
+    });
   }
 
   ngOnDestroy(): void {

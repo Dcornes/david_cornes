@@ -1,6 +1,7 @@
 .page {
   --up: #2f6f45;
   --down: #a3392c;
+  --warn: #a8701c;
   max-width: 90rem;
   margin: 0 auto;
   padding: 1.5rem 2rem 2rem;
@@ -52,30 +53,69 @@ nav a {
   font-weight: 600;
 }
 
-/* --- Connection status --- */
+/* --- Status: server connection and each exchange feed --- */
 .status {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 1rem 0;
+  padding: 0.75rem 0;
   font-size: 0.8125rem;
   color: var(--muted);
 }
 
 .dot {
+  flex: none;
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
   background: var(--muted);
 }
 
-.status.live .dot {
+.live > .dot {
   background: var(--up);
   animation: pulse 2s ease-in-out infinite;
 }
 
-.status.reconnecting .dot {
+.quiet > .dot {
+  background: var(--warn);
+}
+
+.reconnecting > .dot,
+.stopped > .dot {
   background: var(--down);
+}
+
+.feeds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* dot | exchange | state | detail */
+.feeds li {
+  display: grid;
+  grid-template-columns: 0.5rem 7rem 9rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.feeds .detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feeds .reconnecting .state,
+.feeds .stopped .state {
+  color: var(--down);
+}
+
+.feeds .quiet .state {
+  color: var(--warn);
 }
 
 @keyframes pulse {
@@ -88,6 +128,11 @@ nav a {
 section {
   padding-top: 1.25rem;
   border-top: 1px solid var(--line);
+}
+
+/* The top bar already draws a line above the first section. */
+.topbar + section {
+  border-top: none;
 }
 
 section + section {
@@ -195,7 +240,7 @@ h2 {
 /* Fixed layout: column widths come from the <col>s, not from the numbers inside. */
 table {
   width: 100%;
-  min-width: 40rem; /* narrower screens scroll the table instead of squeezing it */
+  min-width: 44rem; /* narrower screens scroll the table instead of squeezing it */
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.8125rem;
@@ -207,7 +252,7 @@ table {
 }
 
 .col-size {
-  width: 19%;
+  width: 17%;
 }
 
 .col-price {
@@ -215,7 +260,7 @@ table {
 }
 
 .col-time {
-  width: 17%;
+  width: 21%; /* time plus zone, e.g. 13:54:47.806 CST */
 }
 
 th,
@@ -295,6 +340,33 @@ tbody th {
     display: none;
   }
 
+  /* Detail on its own line under the exchange name; rows keep one height. */
+  .feeds li {
+    grid-template-columns: 0.5rem 6rem minmax(0, 1fr);
+    grid-template-areas: 'dot name state' '. detail detail';
+    row-gap: 0.15rem;
+    min-height: 3.5rem;
+    align-content: center;
+  }
+
+  .feeds .dot {
+    grid-area: dot;
+  }
+
+  .feeds .name {
+    grid-area: name;
+  }
+
+  .feeds .state {
+    grid-area: state;
+  }
+
+  .feeds .detail {
+    grid-area: detail;
+    min-height: 1.2em;
+    font-size: 0.75rem;
+  }
+
   .overview {
     width: 100%;
     grid-template-columns: 1fr 1fr 4.5rem;
@@ -302,7 +374,7 @@ tbody th {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status.live .dot {
+  .live > .dot {
     animation: none;
   }
 

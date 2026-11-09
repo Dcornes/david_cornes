@@ -23,6 +23,12 @@ def split_symbol(symbol: str) -> tuple[str, str]:
     return normalize_asset(parts[0]), normalize_asset(parts[1])
 
 
+def clean_decimal(value: str) -> Decimal:
+    """Parse a padded number ("74818.01000000") without the trailing zeros."""
+    number = Decimal(value).normalize()
+    return number.quantize(Decimal(1)) if number.as_tuple().exponent > 0 else number
+
+
 @dataclass(frozen=True)
 class TopOfBook:
     exchange: str  # source exchange, e.g. "OKX"

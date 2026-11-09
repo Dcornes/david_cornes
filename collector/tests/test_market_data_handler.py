@@ -161,3 +161,42 @@ def test_reconnects_a_stopped_feed(monkeypatch) -> None:
 
     assert len(attempts) == 3
     assert sent[0].best.bid_price == D("100")
+
+
+def test_feed_status_follows_connect_fail_and_reconnect(monkeypatch) -> None:
+    attempts = []
+
+    async def flaky(*symbols):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise RuntimeError("connection dropped")
+        yield quote("OKX", "100", "101")
+        raise asyncio.CancelledError  # end the test once it's live again
+
+    monkeypatch.setattr(MarketDataHandler, "RECONNECT_MIN_SECONDS", 0)
+    changes: list[list] = []
+    h = MarketDataHandler(
+        ["BTC-USDT"], streams={"okx": flaky}, on_update=lambda s: None, reconnect=True, on_status=changes.append
+    )
+    assert [(s.exchange, s.state) for s in h.statuses()] == [("OKX", "connecting")]  # display name, not "okx"
+    try:
+        asyncio.run(h.run())
+    except asyncio.CancelledError:
+        pass
+
+    assert [(c[0].state, c[0].message) for c in changes] == [
+        ("reconnecting", "connection dropped"),
+        ("live", ""),  # reported once, not on every quote
+    ]
+
+
+def test_feed_status_stopped_without_reconnect() -> None:
+    async def ends(*symbols):
+        yield quote("Kraken", "100", "101")
+
+    changes: list[list] = []
+    h = MarketDataHandler(["BTC-USDT"], streams={"kraken": ends}, on_update=lambda s: None, on_status=changes.append)
+    asyncio.run(h.run())
+
+    assert [c[0].state for c in changes] == ["live", "stopped"]
+    assert changes[-1][0].to_dict()["message"] == "Feed ended"

@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { MarketSnapshot } from './market-stream';
+import { FeedStatus, MarketSnapshot } from './market-stream';
 import { MarketsPage } from './markets-page';
 
 /** Stands in for the browser's EventSource so tests can push messages. */
@@ -10,6 +10,7 @@ class FakeEventSource {
   onerror: (() => void) | null = null;
   onmessage: ((event: MessageEvent<string>) => void) | null = null;
   closed = false;
+  private readonly listeners: Record<string, ((event: MessageEvent<string>) => void)[]> = {};
 
   constructor(readonly url: string) {
     FakeEventSource.last = this;
@@ -17,6 +18,20 @@ class FakeEventSource {
 
   open(): void {
     this.onopen?.();
+  }
+
+  addEventListener(type: string, listener: (event: MessageEvent<string>) => void): void {
+    (this.listeners[type] ??= []).push(listener);
+  }
+
+  sendStatus(feeds: FeedStatus[]): void {
+    this.sendEvent('status', feeds);
+  }
+
+  sendEvent(type: string, data: unknown): void {
+    for (const listener of this.listeners[type] ?? []) {
+      listener({ data: JSON.stringify(data) } as MessageEvent<string>);
+    }
   }
 
   send(snapshot: MarketSnapshot): void {
@@ -75,7 +90,7 @@ describe('MarketsPage', () => {
 
     FakeEventSource.last.open();
     fixture.detectChanges();
-    expect(page.querySelector('.status')?.textContent).toContain('Live');
+    expect(page.querySelector('.status')?.textContent).toContain('Connected');
 
     FakeEventSource.last.onerror?.();
     fixture.detectChanges();
@@ -136,4 +151,85 @@ describe('MarketsPage', () => {
     fixture.destroy();
     expect(source.closed).toBe(true);
   });
+
+  it('shows each exchange feed status at the bottom of the page', () => {
+    FakeEventSource.last.open();
+    FakeEventSource.last.sendStatus([
+      feed('OKX', 'live'),
+      feed('Bitstamp', 'reconnecting', 'connection dropped'),
+      feed('Kraken', 'connecting'),
+    ]);
+    push({ ...ETH, exchanges: [{ ...quote('OKX', '1', '2'), timestamp: new Date().toISOString() }] });
+
+    const health = page.querySelector('.health')!;
+    expect(health.compareDocumentPosition(page.querySelector('.market')!)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+    const rows = [...health.querySelectorAll('.feeds li')];
+    expect(rows.map((r) => [r.querySelector('.name')?.textContent, r.className])).toEqual([
+      ['OKX', 'live'],
+      ['Bitstamp', 'reconnecting'],
+      ['Kraken', 'connecting'],
+    ]);
+    expect(rows[0].textContent).toContain('Last update');
+    expect(rows[1].textContent).toContain('connection dropped');
+    expect(rows[1].querySelector('.state')?.textContent).toBe('Reconnecting');
+  });
+
+  it('applies updates that carry only the exchanges that changed', () => {
+    push(BTC);
+    FakeEventSource.last.sendEvent('update', {
+      symbol: 'BTC-USDT',
+      changed: [quote('OKX', '75030.0', '75030.1')],
+      removed: ['Kraken'],
+      best_bid: { price: '75030.0', quantity: '1', exchange: 'OKX' },
+      best_ask: { price: '75030.1', quantity: '2', exchange: 'OKX' },
+      spread: '0.1',
+      crossed: false,
+    });
+    FakeEventSource.last.sendEvent('update', {
+      symbol: 'BTC-USDT',
+      changed: [quote('Bitstamp', '75029.0', '75031.0')],
+      removed: [],
+      best_bid: { price: '75030.0', quantity: '1', exchange: 'OKX' },
+      best_ask: { price: '75030.1', quantity: '2', exchange: 'OKX' },
+      spread: '0.1',
+      crossed: false,
+    });
+    fixture.detectChanges();
+
+    const market = page.querySelector('.market')!;
+    const rows = [...market.querySelectorAll('tbody tr')].map((r) => r.querySelector('th')?.textContent);
+    expect(rows).toEqual(['Bitstamp', 'OKX']); // Kraken removed, Bitstamp added, still sorted
+    expect(market.querySelector('td.best')?.textContent?.trim()).toBe('75030.0');
+    expect(market.querySelector('.overview')?.textContent).toContain('0.1');
+    expect(market.querySelectorAll('.price.up').length).toBeGreaterThan(0); // OKX moved up
+  });
+
+  it('ignores an update for a pair it has no snapshot for', () => {
+    FakeEventSource.last.sendEvent('update', { symbol: 'XRP-USD', changed: [], removed: [], best_bid: null, best_ask: null, spread: null, crossed: false });
+    fixture.detectChanges();
+    expect(page.querySelectorAll('.market').length).toBe(0);
+  });
+
+  it('marks a live feed quiet when its last quote is over a minute old', () => {
+    FakeEventSource.last.open();
+    FakeEventSource.last.sendStatus([feed('OKX', 'live')]);
+    push({ ...ETH, exchanges: [{ ...quote('OKX', '1', '2'), timestamp: new Date(Date.now() - 120_000).toISOString() }] });
+
+    const row = page.querySelector('.feeds li')!;
+    expect(row.className).toBe('quiet');
+    expect(row.querySelector('.state')?.textContent).toBe('No recent updates');
+  });
+
+  it('shows feed status as unknown while disconnected from the server', () => {
+    FakeEventSource.last.open();
+    FakeEventSource.last.sendStatus([feed('OKX', 'live')]);
+    FakeEventSource.last.onerror?.();
+    fixture.detectChanges();
+
+    expect(page.querySelector('.feeds li')?.className).toBe('unknown');
+  });
 });
+
+function feed(exchange: string, state: FeedStatus['state'], message = ''): FeedStatus {
+  return { exchange, state, message, since: '2026-11-09T19:00:00+00:00' };
+}

@@ -11,8 +11,14 @@ SNAPSHOT = {"symbol": "BTC-USDT", "exchanges": [], "best_bid": None, "best_ask":
 
 
 def parse(message: str) -> dict:
+    """A full snapshot or an `update` event (both have symbol, best prices, spread and crossed)."""
+    message = message.removeprefix("event: update\n")
     assert message.startswith("data: ") and message.endswith("\n\n")
     return json.loads(message.removeprefix("data: "))
+
+
+def quote(exchange: str, bid: str, ask: str, qty: str = "1") -> dict:
+    return {"exchange": exchange, "bid": bid, "bid_quantity": qty, "ask": ask, "ask_quantity": qty, "timestamp": "t"}
 
 
 def test_stream_sends_current_snapshots_then_new_ones() -> None:
@@ -44,13 +50,68 @@ def test_stream_sends_heartbeat_when_quiet() -> None:
     assert asyncio.run(scenario()) == ": heartbeat\n\n"
 
 
-def test_slow_subscriber_drops_oldest(monkeypatch) -> None:
-    monkeypatch.setattr(quotes, "QUEUE_SIZE", 2)
+def test_slow_subscriber_gets_full_snapshots_instead_of_a_gap(monkeypatch) -> None:
+    monkeypatch.setattr(quotes, "QUEUE_SIZE", 3)
     source = QuoteBroadcaster(min_interval=0)  # no rate limit, to fill the queue
+    source.publish_status([{"exchange": "OKX", "state": "live"}])
     queue = source.subscribe()
-    for spread in ("1", "2", "3"):
+    for spread in ("1", "2", "3", "4"):
         source.publish({**SNAPSHOT, "spread": spread})
-    assert [parse(queue.get_nowait())["spread"] for _ in range(2)] == ["2", "3"]
+
+    backlog = [queue.get_nowait() for _ in range(queue.qsize())]
+    assert len(backlog) == 2
+    assert backlog[0].startswith("event: status")
+    assert backlog[1] == quotes.sse({**SNAPSHOT, "spread": "4"})  # full snapshot of the newest state
+
+
+def test_first_send_is_full_then_only_changes() -> None:
+    source = QuoteBroadcaster(min_interval=0)
+    queue = source.subscribe()
+    first = {**SNAPSHOT, "exchanges": [quote("Kraken", "1", "3"), quote("OKX", "2", "4")]}
+    source.publish(first)
+    source.publish({**first, "exchanges": [quote("Kraken", "1", "3"), quote("OKX", "2.5", "4")], "spread": "0.5"})
+    source.publish({**first, "exchanges": [quote("OKX", "2.5", "4")]})
+
+    full, update, removal = (queue.get_nowait() for _ in range(3))
+    assert full == quotes.sse(first)
+    assert update.startswith("event: update\n")
+    assert parse(update)["changed"] == [quote("OKX", "2.5", "4")]  # Kraken didn't change, so isn't sent
+    assert parse(update)["spread"] == "0.5"
+    assert (parse(removal)["changed"], parse(removal)["removed"]) == ([], ["Kraken"])
+
+
+def test_quantity_only_changes_are_not_sent() -> None:
+    source = QuoteBroadcaster(min_interval=0)
+    queue = source.subscribe()
+    first = {**SNAPSHOT, "exchanges": [quote("Kraken", "1", "3"), quote("OKX", "2", "4")]}
+    source.publish(first)
+    queue.get_nowait()
+
+    # Kraken's quantity changes but not its price; OKX's price changes, with a new quantity.
+    source.publish({**first, "exchanges": [quote("Kraken", "1", "3", qty="9"), quote("OKX", "2.5", "4", qty="7")]})
+    assert parse(queue.get_nowait())["changed"] == [quote("OKX", "2.5", "4", qty="7")]
+
+    # Only quantities change: nothing is sent at all.
+    source.publish({**first, "exchanges": [quote("Kraken", "1", "3", qty="5"), quote("OKX", "2.5", "4", qty="5")]})
+    assert queue.empty()
+
+    # What new browsers start from matches what existing ones have: Kraken's quantity is the old one.
+    assert source.sent["BTC-USDT"]["exchanges"] == [quote("Kraken", "1", "3"), quote("OKX", "2.5", "4", qty="7")]
+    assert source.latest["BTC-USDT"]["exchanges"][0]["bid_quantity"] == "5"  # /api/quotes still has the newest
+
+
+def test_new_browser_starts_from_what_was_last_sent() -> None:
+    async def scenario() -> dict:
+        source = QuoteBroadcaster(min_interval=60)
+        source.publish(SNAPSHOT)
+        source.publish({**SNAPSHOT, "spread": "2"})  # held back; the next update will be relative to SNAPSHOT
+        stream = event_stream(source)
+        try:
+            return parse(await anext(stream))
+        finally:
+            await stream.aclose()
+
+    assert asyncio.run(scenario()) == SNAPSHOT
 
 
 def test_rate_limit_sends_first_now_and_newest_after_interval() -> None:
@@ -120,3 +181,44 @@ def test_spa_fallback_serves_index_but_not_for_api(tmp_path) -> None:
 def test_configured_symbols(monkeypatch) -> None:
     monkeypatch.setenv("QUOTE_SYMBOLS", " BTC-USDT , eth-usdt,")
     assert quotes.configured_symbols() == ["BTC-USDT", "eth-usdt"]
+
+
+FEEDS = [{"exchange": "OKX", "state": "live", "message": "", "since": "2026-11-09T19:00:00+00:00"}]
+
+
+def parse_status(message: str) -> list:
+    assert message.startswith("event: status\ndata: ") and message.endswith("\n\n")
+    return json.loads(message.removeprefix("event: status\ndata: "))
+
+
+def test_stream_sends_feed_status_first_and_on_change() -> None:
+    async def scenario() -> list[str]:
+        source = QuoteBroadcaster()
+        source.publish_status(FEEDS)
+        source.publish(SNAPSHOT)
+        stream = event_stream(source)
+        on_connect = [await anext(stream), await anext(stream)]
+        source.publish_status([{**FEEDS[0], "state": "reconnecting", "message": "boom"}])
+        change = await anext(stream)
+        await stream.aclose()
+        return [*on_connect, change]
+
+    status, snapshot, change = asyncio.run(scenario())
+    assert parse_status(status) == FEEDS
+    assert parse(snapshot) == SNAPSHOT
+    assert parse_status(change)[0]["state"] == "reconnecting"
+
+
+def test_status_is_not_rate_limited() -> None:
+    source = QuoteBroadcaster(min_interval=60)
+    queue = source.subscribe()
+    for state in ("connecting", "live", "reconnecting"):
+        source.publish_status([{**FEEDS[0], "state": state}])
+    assert [parse_status(queue.get_nowait())[0]["state"] for _ in range(3)] == ["connecting", "live", "reconnecting"]
+
+
+def test_feed_status_endpoint(monkeypatch) -> None:
+    source = QuoteBroadcaster()
+    source.publish_status(FEEDS)
+    monkeypatch.setattr(quotes, "broadcaster", source)
+    assert TestClient(app).get("/api/quotes/status").json() == FEEDS
