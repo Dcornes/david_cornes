@@ -60,7 +60,8 @@ log = logging.getLogger(__name__)
 # Each stream takes symbols like "BTC-USDT" and yields TopOfBook quotes.
 Stream = Callable[..., AsyncIterator[TopOfBook]]
 
-DEFAULT_STREAMS: dict[str, Stream] = {
+# Every exchange with a client. DEFAULT_STREAMS below picks the ones that run.
+ALL_STREAMS: dict[str, Stream] = {
     "okx": okx_stream,
     "kraken": kraken_stream,
     "binance": binance_stream,
@@ -81,6 +82,10 @@ DEFAULT_STREAMS: dict[str, Stream] = {
     "btcmarkets": btcmarkets_stream,  # AUD prices converted to USDT
     "indodax": indodax_stream,  # IDR prices converted to USDT (polled)
 }
+
+# The exchanges that run by default (on the website). Add names from ALL_STREAMS to turn more on.
+ACTIVE_EXCHANGES = ("binance", "kraken", "cryptocom")
+DEFAULT_STREAMS: dict[str, Stream] = {name: ALL_STREAMS[name] for name in ACTIVE_EXCHANGES}
 
 # Display name for each stream, shown in feed statuses.
 EXCHANGE_NAMES = {
@@ -312,12 +317,12 @@ class MarketDataHandler:
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("symbols", nargs="+", help="Pairs, e.g. BTC-USDT")
-    parser.add_argument("--exchanges", nargs="+", choices=list(DEFAULT_STREAMS), default=list(DEFAULT_STREAMS))
+    parser.add_argument("--exchanges", nargs="+", choices=list(ALL_STREAMS), default=list(DEFAULT_STREAMS))
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # hide routine request logs
-    streams = {name: DEFAULT_STREAMS[name] for name in args.exchanges}
+    streams = {name: ALL_STREAMS[name] for name in args.exchanges}
     await MarketDataHandler(args.symbols, streams).run()
 
 
