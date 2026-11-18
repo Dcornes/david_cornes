@@ -16,3 +16,7 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 include = ["lift_vertical*"]
+
+# Ship the lift map snapshot with the package (see lift_vertical/routes.py).
+[tool.setuptools.package-data]
+lift_vertical = ["data/*.json"]

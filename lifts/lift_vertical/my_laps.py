@@ -100,7 +100,9 @@ def summarize(days: dict[int, tuple[str | None, list[Ride], list[Lap]]], liftblo
 
 
 async def update(cache: MyLapsCache, strava: Strava, client: httpx.AsyncClient, aerialways: AerialwayCache,
-                 liftblog_names: dict[str, dict[str, str]]) -> None:
+                 liftblog_names: dict[str, dict[str, str]]) -> int:
+    """Analyse any new ski days. Returns how many were new."""
+    before = len(cache.days)
     if cache.days and cache.latest is None:
         cache.latest = summarize(cache.days, liftblog_names)  # saved days, while new ones are checked
     activities = await strava.ski_activities(MAX_DAYS)
@@ -127,6 +129,7 @@ async def update(cache: MyLapsCache, strava: Strava, client: httpx.AsyncClient, 
         await asyncio.sleep(1)  # be gentle with Overpass and Strava
     cache.latest = summarize(cache.days, liftblog_names)
     cache.error = None
+    return len(cache.days) - before
 
 
 def liftblog_index(lift_data: dict | None) -> dict[str, dict[str, str]]:
@@ -138,18 +141,24 @@ def liftblog_index(lift_data: dict | None) -> dict[str, dict[str, str]]:
     return names
 
 
-async def run_my_laps_updates(cache: MyLapsCache, lift_data=lambda: None, refresh: float = REFRESH_SECONDS) -> None:
-    """Check Strava now and then every few hours, until cancelled. Does nothing without credentials."""
+async def run_my_laps_updates(cache: MyLapsCache, lift_data=lambda: None, refresh: float = REFRESH_SECONDS,
+                              on_new_days=lambda count: None) -> None:
+    """Check Strava now and then every few hours, until cancelled. Does nothing without credentials.
+    on_new_days(count) is called after a check that found new ski days (to refresh the lift maps)."""
     credentials = Credentials.from_env()
     if credentials is None:
         log.info("Strava isn't configured; skipping your lap times")
         return
     async with httpx.AsyncClient(timeout=30, headers={"User-Agent": "davidcornes.com lift laps"}) as client:
         strava, aerialways = Strava(client, credentials), AerialwayCache()
+        first_check = True
         while True:
             try:
-                await update(cache, strava, client, aerialways, liftblog_index(lift_data()))
-                log.info("Updated lap times from %d Strava ski days", cache.latest["days"])
+                new_days = await update(cache, strava, client, aerialways, liftblog_index(lift_data()))
+                log.info("Updated lap times from %d Strava ski days (%d new)", cache.latest["days"], new_days)
+                if new_days and not first_check:
+                    on_new_days(new_days)  # the first check after a restart just catches up
+                first_check = False
                 wait = refresh
             except (StravaError, httpx.HTTPError) as error:
                 cache.error = str(error)

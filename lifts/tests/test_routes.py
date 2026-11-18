@@ -51,3 +51,55 @@ def test_simplify_keeps_the_ends() -> None:
     points = [[float(i), 0.0] for i in range(500)]
     short = routes.simplify(points, 50)
     assert len(short) == 50 and short[0] == points[0] and short[-1] == points[-1]
+
+
+def test_cache_starts_from_the_newer_of_the_snapshot_and_saved_maps(tmp_path) -> None:
+    import json
+
+    older = {"fetched_at": "2026-11-01T00:00:00+00:00", "resorts": [{"resort": "Old"}], "failed": []}
+    newer = {"fetched_at": "2026-11-18T00:00:00+00:00", "resorts": [{"resort": "New"}], "failed": []}
+    bundled, saved = tmp_path / "bundled.json", tmp_path / "saved.json"
+    bundled.write_text(json.dumps(newer))
+    saved.write_text(json.dumps(older))
+    assert routes.RouteCache(saved, bundled).latest["resorts"] == [{"resort": "New"}]
+    assert routes.RouteCache(tmp_path / "missing.json", bundled).latest == newer
+    assert routes.RouteCache(None, None).latest is None
+
+
+def test_shipped_snapshot_has_every_resort() -> None:
+    cache = routes.RouteCache(None)
+    assert sorted(r["resort"] for r in cache.latest["resorts"]) == sorted(RESORT_CENTERS)
+    assert cache.latest["failed"] == []
+
+
+def test_new_strava_days_wake_the_refresh_early(monkeypatch) -> None:
+    import asyncio
+    import time
+
+    fetched = []
+
+    async def fake_fetch(client):
+        fetched.append(time.time())
+        return {"fetched_at": "now", "resorts": [], "failed": []}
+
+    monkeypatch.setattr(routes, "fetch_routes", fake_fetch)
+
+    async def scenario() -> None:
+        cache = routes.RouteCache(None, None)
+        cache.latest, cache.loaded_at = {"resorts": [], "failed": []}, time.time()  # fresh maps
+        wake = asyncio.Event()
+        task = asyncio.create_task(routes.run_route_updates(cache, refresh=3600, wake=wake))
+        await asyncio.sleep(0.05)
+        assert fetched == []  # fresh, so no refresh yet
+        wake.set()  # new Strava ski days
+        await asyncio.sleep(0.05)
+        task.cancel()
+
+    asyncio.run(scenario())
+    assert len(fetched) == 1
+
+
+def test_a_failed_resort_keeps_its_previous_map() -> None:
+    previous = {"resorts": [{"resort": "A"}, {"resort": "B"}], "failed": []}
+    merged = routes.merge(previous, {"resorts": [{"resort": "A"}], "failed": ["B"]})
+    assert [r["resort"] for r in merged["resorts"]] == ["A", "B"] and merged["failed"] == []

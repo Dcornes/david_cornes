@@ -19,6 +19,7 @@ cache = LiftCache()
 my_laps = MyLapsCache(Path(os.environ.get("LAP_CACHE_FILE", DEFAULT_CACHE)))
 
 routes = RouteCache(DEFAULT_CACHE.parent / "lift_routes.json")  # saved lift and run maps (public OSM data)
+route_refresh = asyncio.Event()  # set when new Strava ski days arrive, to refresh the maps early
 
 router = APIRouter(prefix="/api/lifts", tags=["lifts"])
 
@@ -53,9 +54,9 @@ async def run_lifts() -> None:
 
 async def run_my_laps() -> None:
     await asyncio.sleep(5)  # let the Lift Blog data load first, for matching lift names
-    await run_my_laps_updates(my_laps, lambda: cache.latest)
+    await run_my_laps_updates(my_laps, lambda: cache.latest, on_new_days=lambda count: route_refresh.set())
 
 
 async def run_routes() -> None:
-    await asyncio.sleep(60)  # after the Strava pass's first map lookups, to spread out Overpass queries
-    await run_route_updates(routes)
+    # Starts from the shipped snapshot (or saved maps), refreshes daily, and sooner on new Strava days.
+    await run_route_updates(routes, wake=route_refresh)

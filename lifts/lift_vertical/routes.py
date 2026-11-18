@@ -6,7 +6,9 @@ share a point), and the shortest path from near a lift's top to near its bottom 
 lift's lap route. OSM lift lines are drawn bottom to top by convention. Nothing here
 comes from anyone's GPS tracks.
 
-run_route_updates refreshes a RouteCache weekly (the backend serves it at /api/lifts/routes).
+run_route_updates refreshes a RouteCache daily, or sooner when new Strava ski days arrive
+(the backend serves it at /api/lifts/routes). The page starts from a snapshot shipped with
+the code (data/lift_routes.json); `--snapshot` rewrites it from fresh data.
 Run from the lifts/ directory to print each resort's routes:
 
     python -m lift_vertical.routes
@@ -28,8 +30,10 @@ from .aerialways import NOT_LIFTS, RESORT_BOX, RESORT_CENTERS, name_key, overpas
 
 log = logging.getLogger(__name__)
 
-REFRESH_SECONDS = 7 * 24 * 60 * 60
+REFRESH_SECONDS = 24 * 60 * 60  # daily; sooner when new Strava ski days arrive
 RETRY_SECONDS = 60 * 60
+# A snapshot shipped with the code, so the map works straight after a deploy.
+BUNDLED = Path(__file__).resolve().parent / "data" / "lift_routes.json"
 JOIN_M = 25  # run ends this close to another run's point are treated as connected
 STATION_M = 120  # how far from a lift's top/bottom a run may start/end
 MAX_POINTS = 120  # simplify long routes for the page
@@ -202,46 +206,82 @@ async def fetch_routes(client: httpx.AsyncClient) -> dict:
 
 
 class RouteCache:
-    """The latest maps. With a file, they're saved after each load and reused at start
-    while less than a week old, so a restart doesn't query Overpass again."""
+    """The latest maps. They start from the newest of the saved file (if any) and the
+    snapshot shipped with the code (data/lift_routes.json), so the map shows at once,
+    even right after a deploy; each successful refresh is saved to the file."""
 
-    def __init__(self, file: Path | None = None) -> None:
+    def __init__(self, file: Path | None = None, bundled: Path | None = BUNDLED) -> None:
         self.latest: dict | None = None
         self.file = file
-        self.loaded_at = 0.0
-        if file and file.exists():
-            try:
-                self.latest = json.loads(file.read_text(encoding="utf-8"))
-                self.loaded_at = file.stat().st_mtime
-            except ValueError:
-                log.warning("Ignoring an unreadable route cache")
+        self.loaded_at = 0.0  # when the current maps were fetched (seconds since the epoch)
+        for path in (bundled, file):
+            if path and path.exists():
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    fetched = datetime.fromisoformat(data["fetched_at"]).timestamp()
+                except (ValueError, KeyError):
+                    log.warning("Ignoring unreadable lift maps in %s", path)
+                    continue
+                if fetched > self.loaded_at:
+                    self.latest, self.loaded_at = data, fetched
 
     def save(self) -> None:
         if self.file and self.latest:
             self.file.parent.mkdir(parents=True, exist_ok=True)
             self.file.write_text(json.dumps(self.latest), encoding="utf-8")
-            self.loaded_at = time.time()
 
 
-async def run_route_updates(cache: RouteCache, refresh: float = REFRESH_SECONDS) -> None:
-    """Load every resort's lifts and runs now and then weekly, until cancelled."""
+def merge(previous: dict | None, data: dict) -> dict:
+    """Keep resorts that loaded before but failed this time."""
+    if previous and data["failed"]:
+        loaded = {r["resort"] for r in data["resorts"]}
+        kept = [r for r in previous["resorts"] if r["resort"] in data["failed"] and r["resort"] not in loaded]
+        data["resorts"] += kept
+        data["failed"] = [f for f in data["failed"] if f not in {r["resort"] for r in kept}]
+    return data
+
+
+async def run_route_updates(cache: RouteCache, refresh: float = REFRESH_SECONDS, wake: asyncio.Event | None = None) -> None:
+    """Refresh every resort's lifts and runs once the maps are `refresh` old (daily), or
+    straight away when `wake` is set (new Strava ski days). Until cancelled."""
     async with httpx.AsyncClient(timeout=70, headers={"User-Agent": "davidcornes.com lift routes"}) as client:
         while True:
             age = time.time() - cache.loaded_at
-            if cache.latest and age < refresh:
-                await asyncio.sleep(refresh - age)  # saved maps are still fresh
-                continue
+            # Resorts that failed to load are retried hourly; otherwise the maps are good for a day.
+            fresh_for = RETRY_SECONDS if cache.latest and cache.latest.get("failed") else refresh
+            if cache.latest and age < fresh_for:
+                woken = await sleep_until(fresh_for - age, wake)
+                if not woken:
+                    continue  # time's up: loop round and refresh
+                log.info("New Strava ski days; refreshing lift maps")
             try:
-                cache.latest = await fetch_routes(client)
+                cache.latest = merge(cache.latest, await fetch_routes(client))
+                cache.loaded_at = time.time()
                 cache.save()
-                wait = refresh
             except Exception:
                 log.exception("Couldn't load lift routes; retrying in %ds", RETRY_SECONDS)
-                wait = min(refresh, RETRY_SECONDS)
-            await asyncio.sleep(wait)
+                await sleep_until(RETRY_SECONDS, None)
+
+
+async def sleep_until(seconds: float, wake: asyncio.Event | None) -> bool:
+    """Sleep for `seconds`, or until `wake` is set. True if woken (and clears the event)."""
+    if wake is None:
+        await asyncio.sleep(seconds)
+        return False
+    try:
+        await asyncio.wait_for(wake.wait(), timeout=seconds)
+    except TimeoutError:
+        return False
+    wake.clear()
+    return True
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--snapshot", action="store_true", help=f"Also save the result as the shipped snapshot ({BUNDLED.name})")
+    args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -250,6 +290,10 @@ def main() -> None:
             return await fetch_routes(client)
 
     data = asyncio.run(run())
+    if args.snapshot:
+        BUNDLED.parent.mkdir(parents=True, exist_ok=True)
+        BUNDLED.write_text(json.dumps(data), encoding="utf-8")
+        print(f"Saved the snapshot to {BUNDLED}")
     for resort in data["resorts"]:
         with_route = [l for l in resort["lifts"] if l["route"]]
         print(f"{resort['resort']}: {len(resort['lifts'])} lifts, {len(with_route)} with a route")
