@@ -4,7 +4,8 @@ MarketDataHandler (from collector/market_data) runs in the background and calls
 QuoteBroadcaster.publish with a snapshot whenever a price changes. Browsers
 connected to /api/quotes/stream get a full snapshot of each pair, then only what
 changed (an `update` event), at most once a second per pair. A `status` event
-carries every exchange feed's health whenever one changes.
+carries every exchange feed's health whenever one changes. After two hours a
+`paused` event ends the stream; the page offers to resume.
 """
 
 import asyncio
@@ -24,6 +25,7 @@ log = logging.getLogger(__name__)
 DEFAULT_SYMBOLS = "BTC-USDT,ETH-USDT"
 UPDATES_PER_SECOND = 1  # per pair; faster changes are combined, always ending on the newest price
 HEARTBEAT_SECONDS = 15  # keeps idle connections open through proxies
+MAX_STREAM_SECONDS = 2 * 60 * 60  # then the stream ends, so forgotten tabs and bots don't stream forever
 QUEUE_SIZE = 200  # per browser; a browser that falls this far behind is sent full snapshots instead
 
 
@@ -160,23 +162,29 @@ class QuoteBroadcaster:
 broadcaster = QuoteBroadcaster()
 
 
-async def event_stream(source: QuoteBroadcaster, heartbeat: float = HEARTBEAT_SECONDS) -> AsyncIterator[str]:
+async def event_stream(
+    source: QuoteBroadcaster, heartbeat: float = HEARTBEAT_SECONDS, max_seconds: float = MAX_STREAM_SECONDS
+) -> AsyncIterator[str]:
     """Send feed health and a full snapshot of every pair, then each change as it happens.
 
     The snapshots are as of the last send (not the newest), because the updates that
-    follow are relative to those.
+    follow are relative to those. After max_seconds a `paused` event is sent and the
+    stream ends; the page then waits for the viewer to resume instead of reconnecting.
     """
+    deadline = time.monotonic() + max_seconds
     queue = source.subscribe()
     try:
         for message in source.initial_messages():
             yield message
-        while True:
+        while (remaining := deadline - time.monotonic()) > 0:
             try:
-                message = await asyncio.wait_for(queue.get(), timeout=heartbeat)
+                message = await asyncio.wait_for(queue.get(), timeout=min(heartbeat, remaining))
             except TimeoutError:
-                yield ": heartbeat\n\n"  # SSE comment; browsers ignore it
+                if deadline - time.monotonic() > 0:
+                    yield ": heartbeat\n\n"  # SSE comment; browsers ignore it
                 continue
             yield message
+        yield sse({"after_seconds": max_seconds}, event="paused")
     finally:
         source.unsubscribe(queue)  # browser disconnected
 

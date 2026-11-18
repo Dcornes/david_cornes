@@ -1,0 +1,186 @@
+<div class="page">
+  <header class="topbar">
+    <h1>
+      <a routerLink="/">David Cornes</a>
+      <span class="muted">Ski lift vertical</span>
+    </h1>
+    <app-site-nav />
+  </header>
+
+  @if (data(); as d) {
+    <section aria-labelledby="lifts-heading">
+      <h2 id="lifts-heading">Lift vertical and laps per day</h2>
+      <p class="muted note">
+        How much vertical each operating lift gives you: per minute of riding, per minute of a whole lap, and over a
+        full day of laps on it. A lap is the ride up, the run down at the speed below, plus a little time to load and
+        unload.
+      </p>
+
+      <div class="assumptions" role="group" aria-label="Assumptions for laps per day">
+        <label>
+          <span>Ski-down speed</span>
+          <span class="field"><input type="number" min="100" max="3000" step="50" [value]="descentRate()"
+            (input)="setNumber(descentRate, $any($event.target).value, 100, 3000)" /> vertical ft / min</span>
+        </label>
+        <label>
+          <span>Lift hours</span>
+          <span class="field"><input type="number" min="1" max="12" step="0.5" [value]="dayHours()"
+            (input)="setNumber(dayHours, $any($event.target).value, 1, 12)" /> hours</span>
+        </label>
+        <label>
+          <span>Extra per lap</span>
+          <span class="field"><input type="number" min="0" max="30" step="0.5" [value]="extraMinutes()"
+            (input)="setNumber(extraMinutes, $any($event.target).value, 0, 30)" /> min (loading, lines)</span>
+        </label>
+        <button type="button" class="reset" (click)="resetAssumptions()">Fast skier defaults</button>
+        @if (mine()?.ski_rate_ft_min; as rate) {
+          <button type="button" class="reset" (click)="useMySpeed()">Use my speed ({{ rate | number: '1.0-0' }} ft/min)</button>
+        }
+      </div>
+
+      @if (mine(); as m) {
+        <p class="muted note my-note">
+          <span class="mine-mark" aria-hidden="true">●</span> Lap times marked with a dot are my real round trips (ride, ski
+          down and any line), medians from {{ m.days }} ski days and {{ m.laps }} laps on Strava. The rest are estimates
+          from the settings above.
+        </p>
+      }
+
+      <div class="filters" role="group" aria-label="Ski area">
+        <button type="button" [class.active]="resort() === null" (click)="resort.set(null)">All</button>
+        @for (r of d.resorts; track r) {
+          <button type="button" [class.active]="resort() === r" (click)="resort.set(r)">{{ r }}</button>
+        }
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col" class="rank">#</th>
+              <th scope="col"><button type="button" class="sort" [class.active]="sort() === 'name'" (click)="sort.set('name')">Lift</button></th>
+              @if (resort() === null) {
+                <th scope="col"><button type="button" class="sort" [class.active]="sort() === 'resort'" (click)="sort.set('resort')">Ski area</button></th>
+              }
+              <th scope="col" class="type">Type</th>
+              <th scope="col" class="num"><button type="button" class="sort" [class.active]="sort() === 'vertical'" (click)="sort.set('vertical')">Vertical</button></th>
+              <th scope="col" class="num"><button type="button" class="sort" [class.active]="sort() === 'ride_time'" (click)="sort.set('ride_time')">Ride time</button></th>
+              <th scope="col" class="num"><button type="button" class="sort" [class.active]="sort() === 'vert_per_minute'" (click)="sort.set('vert_per_minute')" title="Vertical rise divided by ride time">Vert / ride min</button></th>
+              <th scope="col" class="num"><button type="button" class="sort" [class.active]="sort() === 'lap_vert_per_minute'" (click)="sort.set('lap_vert_per_minute')" title="Vertical rise divided by the whole lap: ride up, ski down and extra time">Vert / lap min</button></th>
+              <th scope="col" class="num"><button type="button" class="sort" [class.active]="sort() === 'lap_minutes'" (click)="sort.set('lap_minutes')">Lap time</button></th>
+              <th scope="col" class="num"><button type="button" class="sort" [class.active]="sort() === 'laps'" (click)="sort.set('laps')">Laps / day</button></th>
+              <th scope="col" class="rate"><button type="button" class="sort" [class.active]="sort() === 'daily_vertical'" (click)="sort.set('daily_vertical')">Vert / day</button></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (lift of lifts(); track lift.resort + lift.name; let i = $index) {
+              <tr>
+                <td class="rank muted">{{ i + 1 }}</td>
+                <th scope="row">{{ lift.name }}</th>
+                @if (resort() === null) {
+                  <td>{{ lift.resort }}</td>
+                }
+                <td class="muted type">{{ lift.type }}</td>
+                <td class="num">{{ lift.vertical | number: '1.0-0' }} ft</td>
+                <td class="num">{{ lift.ride_time | number: '1.1-1' }} min</td>
+                <td class="num">{{ lift.vert_per_minute | number: '1.0-0' }}</td>
+                <td class="num">{{ lift.lap_vert_per_minute | number: '1.0-0' }}</td>
+                <td class="num" [class.mine]="lift.my_laps !== null"
+                  [title]="lift.my_laps !== null ? 'My median round trip over ' + lift.my_laps + ' laps (Strava)' : 'Estimate from the settings above'">
+                  {{ lift.lap_minutes | number: '1.1-1' }} min@if (lift.my_laps !== null) {<span class="mine-mark" aria-label="my time">●</span>}
+                </td>
+                <td class="num strong">{{ lift.laps }}</td>
+                <td class="rate">
+                  <span class="bar" aria-hidden="true"><span [style.width]="barWidth(lift)"></span></span>
+                  <span class="value">{{ lift.daily_vertical | number: '1.0-0' }} ft</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="muted note sort-note">Select a column heading to sort by it.</p>
+    </section>
+
+    <section aria-labelledby="route-heading">
+      <h2 id="route-heading">Best route for the most vert</h2>
+      @if (plan(); as p) {
+        <p class="muted note">
+          The lift to lap all day for the most vertical at the settings above, and the shortest mapped way back down
+          to its bottom. Change the ski-down speed or lift hours and the pick updates.
+        </p>
+        <div class="filters" role="group" aria-label="Ski area for the route">
+          @for (m of maps(); track m.resort) {
+            <button type="button" [class.active]="p.resort === m.resort" (click)="mapResort.set(m.resort)">{{ m.resort }}</button>
+          }
+        </div>
+        @if (p.best; as best) {
+          <div class="route-plan">
+            <div class="route-text">
+              <p class="route-lead">
+                Lap <strong>{{ best.day.name }}</strong>:
+                <strong>{{ best.day.laps }} laps</strong> and
+                <strong>{{ best.day.daily_vertical | number: '1.0-0' }} ft</strong> in {{ dayHours() }} hours.
+              </p>
+              <dl class="route-facts">
+                @if (best.mine; as m) {
+                  <div><dt>Ride up (mine)</dt><dd>{{ m.ride_minutes | number: '1.1-1' }} min</dd></div>
+                  <div><dt>Ski down + line (mine)</dt><dd>{{ m.ski_minutes! + m.line_minutes! | number: '1.1-1' }} min</dd></div>
+                  <div><dt>Round trip (mine)</dt><dd>{{ best.day.lap_minutes | number: '1.1-1' }} min</dd></div>
+                } @else {
+                  <div><dt>Ride up</dt><dd>{{ best.day.ride_time | number: '1.1-1' }} min</dd></div>
+                  <div><dt>Ski down</dt><dd>{{ best.day.vertical / descentRate() | number: '1.1-1' }} min</dd></div>
+                  <div><dt>Lap</dt><dd>{{ best.day.lap_minutes | number: '1.1-1' }} min</dd></div>
+                }
+                <div><dt>Route</dt><dd>{{ best.osm.route!.length_m / 1000 | number: '1.1-1' }} km</dd></div>
+              </dl>
+              <p class="route-runs">
+                <span class="muted">Ski down via</span>
+                {{ best.osm.route!.runs.length ? best.osm.route!.runs.join(' → ') : 'unnamed runs' }}
+              </p>
+              @if (best.osm.route!.difficulty; as level) {
+                <p class="route-level">
+                  Hardest run: <strong>{{ level }}</strong>.
+                  <span class="muted">The shortest way down isn't always the easiest; check the trail map and conditions.</span>
+                </p>
+              }
+              @if (p.others.length) {
+                <p class="muted route-others">
+                  Next best:
+                  @for (o of p.others; track o.day.name; let last = $last) {
+                    {{ o.day.name }} ({{ o.day.daily_vertical | number: '1.0-0' }} ft){{ last ? '.' : ',' }}
+                  }
+                </p>
+              }
+            </div>
+            <app-route-map
+              [lifts]="p.map.lifts"
+              [chosen]="best.osm.name"
+              [route]="best.osm.route!.points"
+              [label]="'Map of ' + p.resort + ' with the ' + best.day.name + ' lift and its ski route'"
+            />
+          </div>
+        } @else {
+          <p class="muted note">No mapped route for {{ p.resort }}'s lifts yet.</p>
+        }
+        <p class="muted note sort-note">
+          Lift lines and runs from OpenStreetMap. Times assume no lines beyond the extra time per lap; real days have
+          breaks, lift stops and changing conditions.
+        </p>
+      } @else {
+        <p class="muted note">Loading lift maps… (they load a few minutes after the site starts).</p>
+      }
+    </section>
+
+    <footer class="footer muted">
+      Lift specifications from <a [href]="d.source" target="_blank" rel="noopener">Lift Blog</a>, checked daily. Ride
+      times are top-to-bottom at full speed. Laps per day are estimates: whole laps that fit in the day, with no
+      breaks, lift stops or long lines.
+      @if (d.failed.length) {
+        Couldn't load {{ d.failed.join(', ') }} this time.
+      }
+    </footer>
+  } @else {
+    <p class="muted empty" role="status">{{ error() ?? 'Loading lift data…' }}</p>
+  }
+</div>

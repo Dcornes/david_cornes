@@ -1,9 +1,9 @@
 import { Component } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { SiteNav } from '../site-nav/site-nav';
 import { RESUME } from '../resume';
 
 @Component({
-  imports: [RouterLink],
+  imports: [SiteNav],
   selector: 'app-resume-page',
   styleUrl: './resume-page.css',
   templateUrl: './resume-page.html',

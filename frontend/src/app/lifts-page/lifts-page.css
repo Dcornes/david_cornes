@@ -1,0 +1,385 @@
+.page {
+  --warn: #a8701c;
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd,
+figure {
+  margin: 0;
+}
+
+a {
+  transition: opacity 0.15s;
+}
+
+a:hover {
+  opacity: 0.6;
+}
+
+/* --- Top bar (matches the other pages) --- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: clamp(3rem, 10vh, 6rem);
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+h1 .muted {
+  display: block;
+  font-weight: 400;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.25rem 1.5rem;
+}
+
+nav a {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+/* --- Sections --- */
+section {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.topbar + section {
+  border-top: none;
+}
+
+section + section {
+  margin-top: 3rem;
+}
+
+h2 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.note {
+  margin: 0.25rem 0 1.25rem;
+  font-size: 0.8125rem;
+}
+
+.empty {
+  padding: 2rem 0;
+  font-size: 0.875rem;
+}
+
+dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+dd {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.big {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+.flag {
+  margin-right: 0.4rem;
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* --- Weather table --- */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 54rem;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+th:first-child {
+  padding-left: 0;
+}
+
+thead th {
+  border-top: none;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+tbody th {
+  font-weight: 600;
+}
+
+.num {
+  text-align: right;
+}
+
+.footer {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+
+.footer a {
+  text-decoration: underline;
+}
+
+@media (max-width: 860px) {
+  .page {
+    padding: 1.25rem 1rem 1.5rem;
+  }
+
+  .topbar {
+    padding-bottom: 2rem;
+  }
+}
+
+/* --- Lift table extras --- */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.filters button,
+.sort {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.filters button {
+  padding: 0.3rem 0.85rem;
+  font-size: 0.8125rem;
+}
+
+.filters button.active {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* Column headings that sort: look like the other headings, underlined when active. */
+.sort {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.sort.active {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.rank {
+  width: 2.5rem;
+  padding-left: 0;
+}
+
+.rate {
+  width: 22%;
+  min-width: 11rem; /* room for the bar next to the number */
+}
+
+.strong {
+  font-weight: 600;
+}
+
+/* --- Assumptions for laps per day --- */
+.assumptions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.75rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.8125rem;
+}
+
+.assumptions label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.assumptions label > span:first-child {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.field {
+  white-space: nowrap;
+}
+
+.assumptions input {
+  width: 4.5rem;
+  margin-right: 0.3rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.reset {
+  padding: 0.3rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bar {
+  display: inline-block;
+  width: calc(100% - 5.5rem);
+  height: 0.5rem;
+  vertical-align: middle;
+  background: var(--line);
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--text);
+}
+
+.value {
+  display: inline-block;
+  width: 5rem;
+  text-align: right;
+  font-weight: 600;
+}
+
+section + section {
+  margin-top: 3rem;
+}
+
+td.mine {
+  font-weight: 600;
+}
+
+.mine-mark {
+  margin-left: 0.3rem;
+  color: #1f5fa8;
+  font-size: 0.625rem;
+  vertical-align: 0.1em;
+}
+
+.my-note .mine-mark {
+  margin: 0 0.2rem 0 0;
+}
+
+.sort-note {
+  margin-top: 0.75rem;
+}
+
+/* Narrower screens: just the numbers, so every column fits. */
+@media (max-width: 1100px) {
+  .bar,
+  .type {
+    display: none;
+  }
+
+  .rate {
+    width: auto;
+    min-width: 0;
+    text-align: right;
+  }
+
+  .value {
+    width: auto;
+  }
+}
+
+/* --- Best route --- */
+.route-plan {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.route-lead {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.route-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.route-facts dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.route-facts dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.route-runs,
+.route-level,
+.route-others {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 860px) {
+  .route-plan {
+    grid-template-columns: 1fr;
+  }
+}

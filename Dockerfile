@@ -18,7 +18,13 @@ COPY backend/requirements.txt ./
 # Only its code is copied; collector/.env never enters the image (see .dockerignore).
 COPY collector/pyproject.toml /collector/pyproject.toml
 COPY collector/market_data /collector/market_data
-RUN pip install --no-cache-dir -r requirements.txt /collector
+# The snow page uses snow/snow_report (Bridger Bowl snow totals and webcams).
+COPY snow/pyproject.toml /snow/pyproject.toml
+COPY snow/snow_report /snow/snow_report
+# The lift vertical page uses lifts/lift_vertical (Lift Blog lift data).
+COPY lifts/pyproject.toml /lifts/pyproject.toml
+COPY lifts/lift_vertical /lifts/lift_vertical
+RUN pip install --no-cache-dir -r requirements.txt /collector /snow /lifts
 
 COPY backend/app ./app
 COPY --from=frontend /frontend/dist/frontend/browser ./static

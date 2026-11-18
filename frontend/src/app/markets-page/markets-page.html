@@ -4,10 +4,15 @@
       <a routerLink="/">David Cornes</a>
       <span class="muted">Live markets</span>
     </h1>
-    <nav aria-label="Primary">
-      <a routerLink="/">Résumé</a>
-    </nav>
+    <app-site-nav />
   </header>
+
+  @if (market.status() === 'paused') {
+    <p class="paused-notice" role="status">
+      Prices paused after 2 hours to save bandwidth.
+      <button type="button" class="resume" (click)="market.resume()">Resume</button>
+    </p>
+  }
 
   <label class="option">
     <input type="checkbox" [checked]="showConverted()" (change)="setShowConverted($any($event.target).checked)" />
@@ -134,6 +139,10 @@
       @switch (market.status()) {
         @case ('live') { Connected to the server }
         @case ('reconnecting') { Reconnecting to the server… }
+        @case ('paused') {
+          Paused after 2 hours to save bandwidth.
+          <button type="button" class="resume" (click)="market.resume()">Resume</button>
+        }
         @default { Connecting to the server… }
       }
     </p>

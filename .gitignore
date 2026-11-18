@@ -18,6 +18,9 @@ Thumbs.db
 #keys
 .env
 
+# Local caches (e.g. analysed Strava ski days)
+.cache/
+
 
 # Python packaging (created by pip install -e)
 *.egg-info/

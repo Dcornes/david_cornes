@@ -1,4 +1,8 @@
 -r requirements.txt
 # Live market data (installed from ../collector; run pip from backend/)
 -e ../collector
+# Bridger Bowl snow totals (installed from ../snow)
+-e ../snow
+# Lift vertical vs ride time (installed from ../lifts)
+-e ../lifts
 pytest>=8

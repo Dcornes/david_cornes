@@ -268,6 +268,57 @@ describe('MarketsPage', () => {
 
     expect(page.querySelector('.feeds li')?.className).toBe('unknown');
   });
+
+  it('stops streaming when paused by the server until Resume is clicked', () => {
+    const paused = FakeEventSource.last;
+    paused.open();
+    paused.sendEvent('paused', { after_seconds: 7200 });
+    fixture.detectChanges();
+
+    expect(paused.closed).toBe(true);
+    expect(page.querySelector('.paused-notice')?.textContent).toContain('paused after 2 hours');
+
+    (page.querySelector('.paused-notice .resume') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(FakeEventSource.last).not.toBe(paused);
+    expect(page.querySelector('.paused-notice')).toBeNull();
+  });
+
+  describe('when the tab is hidden', () => {
+    let hidden = false;
+
+    function setHidden(value: boolean): void {
+      hidden = value;
+      document.dispatchEvent(new Event('visibilitychange'));
+      fixture.detectChanges();
+    }
+
+    beforeEach(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+    });
+
+    afterEach(() => {
+      delete (document as { hidden?: boolean }).hidden; // back to the browser's own property
+    });
+
+    it('closes the stream and reopens it when shown again', () => {
+      const first = FakeEventSource.last;
+      setHidden(true);
+      expect(first.closed).toBe(true);
+
+      setHidden(false);
+      expect(FakeEventSource.last).not.toBe(first);
+      expect(FakeEventSource.last.closed).toBe(false);
+    });
+
+    it('stays paused when shown again after the server paused it', () => {
+      FakeEventSource.last.sendEvent('paused', {});
+      const paused = FakeEventSource.last;
+      setHidden(true);
+      setHidden(false);
+      expect(FakeEventSource.last).toBe(paused);
+    });
+  });
 });
 
 function feed(exchange: string, state: FeedStatus['state'], message = ''): FeedStatus {

@@ -7,12 +7,17 @@ services:
     healthCheckPath: /api/health
     autoDeploy: true
     # Only rebuild the website when website files change. The live markets page
-    # uses collector/market_data, so that counts; the rest of collector/ doesn't.
+    # uses collector/market_data, the snow page snow/snow_report and the lifts page
+    # lifts/lift_vertical, so those count; their tests and docs don't.
     buildFilter:
       paths:
         - backend/**
         - frontend/**
         - collector/market_data/**
         - collector/pyproject.toml
+        - snow/snow_report/**
+        - snow/pyproject.toml
+        - lifts/lift_vertical/**
+        - lifts/pyproject.toml
         - Dockerfile
         - .dockerignore

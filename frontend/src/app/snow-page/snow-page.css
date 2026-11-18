@@ -1,0 +1,340 @@
+.page {
+  --warn: #a8701c;
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd,
+figure {
+  margin: 0;
+}
+
+a {
+  transition: opacity 0.15s;
+}
+
+a:hover {
+  opacity: 0.6;
+}
+
+/* --- Top bar (matches the other pages) --- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: clamp(3rem, 10vh, 6rem);
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+h1 .muted {
+  display: block;
+  font-weight: 400;
+}
+
+.empty {
+  padding: 2rem 0;
+  font-size: 0.875rem;
+}
+
+.flag {
+  margin-right: 0.4rem;
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* --- One resort: a collapsible section --- */
+.resort {
+  border-bottom: 1px solid var(--line);
+}
+
+/* Stats on the left, the camera thumbnail, then the update time on the right. */
+.resort > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: start;
+  gap: 0.5rem 2rem;
+  padding: 1.5rem 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.resort > summary::-webkit-details-marker {
+  display: none;
+}
+
+.thumb {
+  display: block;
+  width: 10rem;
+}
+
+.thumb img,
+.thumb iframe {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  object-fit: cover;
+  background: var(--line);
+  pointer-events: none; /* clicks open the resort instead of the player */
+}
+
+.thumb-name {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.6875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* A right-pointing triangle, turned down when open. */
+.chevron {
+  width: 0;
+  height: 0;
+  border-top: 0.35rem solid transparent;
+  border-bottom: 0.35rem solid transparent;
+  border-left: 0.5rem solid currentColor;
+  transition: transform 0.15s;
+}
+
+.resort[open] > summary .chevron {
+  transform: rotate(90deg);
+}
+
+.updated {
+  width: 12rem; /* the same in every row, so the thumbnails line up */
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.75rem 1.5rem;
+  margin-top: 1rem;
+}
+
+dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+dd {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+dd.detail {
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.body {
+  padding-bottom: 1.75rem;
+}
+
+.no-cams {
+  font-size: 0.875rem;
+}
+
+.no-cams a {
+  text-decoration: underline;
+}
+
+/* --- Webcams --- */
+figure.big {
+  max-width: 56rem;
+}
+
+.webcams {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 1.25rem 1rem;
+}
+
+figure img,
+figure iframe {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  object-fit: cover;
+  background: var(--line);
+}
+
+figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  margin-top: 0.4rem;
+  font-size: 0.8125rem;
+}
+
+figcaption .flag {
+  flex-basis: 100%;
+  font-size: 0.75rem;
+}
+
+/* --- More stats --- */
+.more {
+  margin-top: 1.25rem;
+}
+
+.more > summary {
+  display: inline-block;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more > summary::after {
+  content: ' ▾';
+}
+
+.more[open] > summary::after {
+  content: ' ▴';
+}
+
+.more[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
+h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.message {
+  max-width: 48rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  white-space: pre-line;
+}
+
+.note {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+}
+
+.source {
+  margin-top: 1.5rem;
+  font-size: 0.75rem;
+}
+
+.source a {
+  text-decoration: underline;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+th:first-child {
+  padding-left: 0;
+}
+
+thead th {
+  border-top: none;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+tbody th {
+  font-weight: 600;
+}
+
+.footer {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 860px) {
+  .page {
+    padding: 1.25rem 1rem 1.5rem;
+  }
+
+  .topbar {
+    padding-bottom: 2rem;
+  }
+
+  dd {
+    font-size: 1.375rem;
+  }
+
+  /* Phones: stats and thumbnail side by side, update time underneath. */
+  .resort > summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem 1rem;
+  }
+
+  .thumb {
+    width: 7rem;
+  }
+
+  .updated {
+    grid-column: 1 / -1;
+    width: auto;
+    text-align: left;
+  }
+}

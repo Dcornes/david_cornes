@@ -50,6 +50,20 @@ def test_stream_sends_heartbeat_when_quiet() -> None:
     assert asyncio.run(scenario()) == ": heartbeat\n\n"
 
 
+def test_stream_pauses_after_max_time() -> None:
+    async def scenario() -> list[str]:
+        source = QuoteBroadcaster()
+        source.publish(SNAPSHOT)
+        messages = [m async for m in event_stream(source, heartbeat=0.01, max_seconds=0.05)]
+        assert source.subscriber_count == 0  # the stream ended by itself
+        return messages
+
+    messages = asyncio.run(scenario())
+    assert parse(messages[0]) == SNAPSHOT
+    assert messages[-1] == 'event: paused\ndata: {"after_seconds": 0.05}\n\n'
+    assert set(messages[1:-1]) <= {": heartbeat\n\n"}
+
+
 def test_slow_subscriber_gets_full_snapshots_instead_of_a_gap(monkeypatch) -> None:
     monkeypatch.setattr(quotes, "QUEUE_SIZE", 3)
     source = QuoteBroadcaster(min_interval=0)  # no rate limit, to fill the queue

@@ -1,11 +1,15 @@
 # david_cornes
 
-FastAPI backend + Angular frontend, plus a separate market-data collector.
+FastAPI backend + Angular frontend, plus separate packages the backend uses for market data, snow reports and lift stats.
+
+Pages: `/` résumé (home), `/markets` live crypto quotes, `/snow` ski area snow totals and webcams, `/lifts` lift vertical vs ride time.
 
 ```
 backend/     website API (FastAPI, Python 3.12)
 frontend/    website UI (Angular 22, Node 22+)
 collector/   market-data code (OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Coinbase, Gemini, Bitfinex, Bitkub, Upbit, Bithumb, KuCoin, Gate, MEXC, Korbit, Coinone, VALR, BTC Markets, Indodax, OANDA); market_data/ is also used by the backend
+snow/        snow totals and webcams for Bridger Bowl, Big Sky, Jackson Hole, Grand Targhee, Revelstoke and Palisades Tahoe (snow_report package)
+lifts/       lift vertical rise vs ride time from Lift Blog's sheets, plus your real lap times from Strava (lift_vertical package)
 ```
 
 ## Backend
@@ -18,7 +22,7 @@ pip install -r requirements-dev.txt
 fastapi dev app/main.py
 ```
 
-`requirements-dev.txt` also installs `../collector` (the `market_data` package) so the backend can stream quotes.
+`requirements-dev.txt` also installs `../collector` (the `market_data` package), `../snow` (`snow_report`) and `../lifts` (`lift_vertical`) as editable packages.
 
 API runs at http://localhost:8000 — interactive docs at http://localhost:8000/docs.
 
@@ -28,6 +32,14 @@ On startup the backend streams OKX, Kraken, Binance.US, Crypto.com, Bitstamp, Co
 - `GET /api/quotes/stream` is a Server-Sent Events stream: a full snapshot of each pair, then `update` events with only what changed, at most 1 per second per pair (faster changes are combined, ending on the newest price). `status` events carry each exchange feed's health.
 - `GET /api/quotes/status` returns each exchange feed's health (connecting, live, reconnecting or stopped).
 - `QUOTE_SYMBOLS` sets the pairs (default `BTC-USDT,ETH-USDT`).
+
+It also fetches snow totals hourly and lift data daily:
+
+- `GET /api/snow` returns each resort's summary stats, webcams and detail tables (`SNOW_ENABLED=0` turns fetching off). Sources: Bridger Bowl's public GraphQL API, Big Sky's snow depth and webcams pages, Jackson Hole's mountain report JSON, Revelstoke's snow report and webcams pages, and the USDA SNOTEL stations on Grand Targhee and Palisades Tahoe (Targhee's site blocks automated requests, so its webcams are linked rather than shown; Palisades' own report needs a third-party key, so only its webcams come from its site).
+- `GET /api/lifts` returns every operating lift's vertical rise, ride time and vertical feet per minute (`LIFTS_ENABLED=0` turns fetching off).
+- `GET /api/lifts/mine` returns per-lift medians of your real rides and laps from Strava (ride, ski-down, line and round-trip times). Only totals are published, never GPS tracks or dates. It needs `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` and `STRAVA_REFRESH_TOKEN` (in `backend/.env` locally, see `backend/.env.example`; in Render's Environment settings for the live site). Get a refresh token with activity access once with `python -m lift_vertical.strava_connect` from `lifts/`, which saves it to `backend/.env`. Lift locations come from OpenStreetMap.
+
+Both packages run on their own too, from their folders: `python -m snow_report.resorts`, `python -m lift_vertical.liftblog` and `python -m lift_vertical.my_laps`. Their tests run with `pytest` from `snow/` and `lifts/`.
 - `MARKET_DATA_ENABLED=0` turns it off.
 
 Run tests:

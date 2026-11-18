@@ -1,0 +1,165 @@
+<div class="page">
+  <header class="topbar">
+    <h1>
+      <a routerLink="/">David Cornes</a>
+      <span class="muted">Snow report</span>
+    </h1>
+    <app-site-nav />
+  </header>
+
+  <ng-template #webcam let-cam let-big="big">
+    <figure [class.big]="big">
+      @if (cam.kind === 'embed') {
+        <iframe
+          [src]="embedUrl(cam)"
+          [title]="'Live webcam: ' + cam.name"
+          loading="lazy"
+          allowfullscreen
+          sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        ></iframe>
+      } @else {
+        <a [href]="cam.link" target="_blank" rel="noopener">
+          <img [src]="imageUrl(cam)" [alt]="'Webcam: ' + cam.name" loading="lazy" decoding="async" width="1280" height="720" />
+        </a>
+      }
+      <figcaption>
+        <strong>{{ cam.name }}</strong>
+        @if (cam.kind === 'embed') {
+          <span class="muted">Live</span>
+        }
+        @if (isStaleWebcam(cam)) {
+          <span class="flag">Not updated since {{ cam.updated | date: 'MMM d' }}</span>
+        }
+      </figcaption>
+    </figure>
+  </ng-template>
+
+  @if (data(); as d) {
+    @for (r of d.resorts; track r.id) {
+      <details class="resort" [open]="isOpen(r)">
+        <summary (click)="$event.preventDefault(); setOpen(r, !isOpen(r))">
+          <span class="main">
+            <span class="name">
+              <span class="chevron" aria-hidden="true"></span>
+              <h2>{{ r.name }}</h2>
+            </span>
+            <dl class="summary">
+              @for (s of r.summary; track s.label + s.detail) {
+                <div>
+                  <dt>{{ s.label }}</dt>
+                  <dd>{{ s.value }}</dd>
+                  @if (s.detail) {
+                    <dd class="detail muted">{{ s.detail }}</dd>
+                  }
+                </div>
+              }
+            </dl>
+          </span>
+          <!-- A small view of the featured camera while collapsed (the full-size one shows when open). -->
+          <span class="thumb">
+            @if (!isOpen(r)) {
+              @if (featured(r); as cam) {
+                @if (cam.kind === 'embed') {
+                  <iframe
+                    [src]="embedUrl(cam)"
+                    [title]="'Live webcam: ' + cam.name"
+                    loading="lazy"
+                    tabindex="-1"
+                    sandbox="allow-same-origin allow-scripts"
+                  ></iframe>
+                } @else {
+                  <img [src]="imageUrl(cam)" [alt]="'Webcam: ' + cam.name" loading="lazy" decoding="async" width="320" height="180" />
+                }
+                <span class="thumb-name muted">{{ cam.name }}</span>
+              }
+            }
+          </span>
+          <span class="updated muted">
+            @if (r.stale) {
+              <span class="flag">Couldn't refresh</span>
+            }
+            @if (r.updated) {
+              Updated {{ r.updated | date: 'MMM d, h:mm a' }} {{ r.updated | timeZone }}
+            }
+          </span>
+        </summary>
+
+        @if (isOpen(r)) {
+          <div class="body">
+            @if (featured(r); as cam) {
+              <ng-container *ngTemplateOutlet="webcam; context: { $implicit: cam, big: true }" />
+            } @else if (r.webcams_page) {
+              <p class="no-cams muted">
+                {{ r.name }}'s webcams can't be shown here.
+                <a [href]="r.webcams_page" target="_blank" rel="noopener">See them on its website ↗</a>
+              </p>
+            }
+
+            <details class="more" [open]="isExpanded(r)">
+              <summary (click)="$event.preventDefault(); setExpanded(r, !isExpanded(r))">
+                More stats
+                @if (otherWebcams(r).length) {
+                  and {{ otherWebcams(r).length }} more webcams
+                }
+              </summary>
+              @if (isExpanded(r)) {
+                @if (r.message) {
+                  <p class="message">{{ r.message }}</p>
+                }
+                @for (t of r.tables; track t.title) {
+                  <h3>{{ t.title }}</h3>
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          @for (c of t.columns; track $index) {
+                            <th scope="col">{{ c }}</th>
+                          }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (row of t.rows; track $index) {
+                          <tr>
+                            @for (cell of row; track $index; let first = $first) {
+                              @if (first) {
+                                <th scope="row">{{ cell }}</th>
+                              } @else {
+                                <td>{{ cell }}</td>
+                              }
+                            }
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  @if (t.note) {
+                    <p class="note muted">{{ t.note }}</p>
+                  }
+                }
+                @if (otherWebcams(r).length) {
+                  <h3>Webcams</h3>
+                  <div class="webcams">
+                    @for (cam of otherWebcams(r); track cam.src) {
+                      <ng-container *ngTemplateOutlet="webcam; context: { $implicit: cam, big: false }" />
+                    }
+                  </div>
+                }
+                <p class="source muted">
+                  Data from <a [href]="r.source_url" target="_blank" rel="noopener">{{ r.source }}</a>.
+                  <a [href]="r.website" target="_blank" rel="noopener">{{ r.name }} website ↗</a>
+                </p>
+              }
+            </details>
+          </div>
+        }
+      </details>
+    }
+
+    <footer class="footer muted">
+      Snow totals and webcam images belong to each ski area (Grand Targhee's and Palisades Tahoe's numbers are from
+      the USDA's SNOTEL snow stations on those mountains). Checked hourly; last checked {{ d.fetched_at | date: 'h:mm a' }} {{ d.fetched_at | timeZone }}.
+    </footer>
+  } @else {
+    <p class="muted empty" role="status">{{ error() ?? 'Loading snow totals…' }}</p>
+  }
+</div>

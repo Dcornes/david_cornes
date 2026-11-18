@@ -47,7 +47,8 @@ export interface PriceMoves {
   ask: Direction;
 }
 
-export type StreamStatus = 'connecting' | 'live' | 'reconnecting';
+/** paused: the server ended the stream after two hours; it stays closed until resume(). */
+export type StreamStatus = 'connecting' | 'live' | 'reconnecting' | 'paused';
 
 export type FeedState = 'connecting' | 'live' | 'reconnecting' | 'stopped';
 
@@ -68,6 +69,16 @@ export class MarketStream implements OnDestroy {
   /** exchange -> time of its newest quote (ms since epoch) */
   private readonly lastQuoteAt = signal<Record<string, number>>({});
   private source?: EventSource;
+  private url = '/api/quotes/stream';
+  /** Closes the stream while the tab is hidden and reopens it when it's shown again. */
+  private readonly onVisibilityChange = () => {
+    if (document.hidden) {
+      this.source?.close();
+      this.source = undefined;
+    } else if (!this.source && this.status() !== 'paused') {
+      this.open(); // the server sends fresh full snapshots on connect
+    }
+  };
 
   readonly status = signal<StreamStatus>('connecting');
   readonly snapshots = computed(() =>
@@ -79,15 +90,38 @@ export class MarketStream implements OnDestroy {
   readonly lastUpdates = this.lastQuoteAt.asReadonly();
 
   connect(url = '/api/quotes/stream'): void {
+    this.url = url;
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    if (!document.hidden) {
+      this.open();
+    }
+  }
+
+  /** Start streaming again after the server paused it. */
+  resume(): void {
+    this.status.set('connecting');
+    if (!document.hidden) {
+      this.open();
+    }
+  }
+
+  private open(): void {
     this.source?.close();
     this.status.set('connecting');
-    this.source = new EventSource(url);
+    this.source = new EventSource(this.url);
     this.source.onopen = () => this.status.set('live');
     // EventSource reconnects by itself; just show that it's trying.
     this.source.onerror = () => this.status.set('reconnecting');
     this.source.onmessage = (event: MessageEvent<string>) => this.receive(JSON.parse(event.data));
     this.source.addEventListener('update', (event) => this.applyUpdate(JSON.parse((event as MessageEvent<string>).data)));
     this.source.addEventListener('status',(event) => this.feeds.set(JSON.parse((event as MessageEvent<string>).data)));
+    // Sent after two hours. Close now, or EventSource would reconnect by itself.
+    this.source.addEventListener('paused', () => {
+      this.source?.close();
+      this.source = undefined;
+      this.status.set('paused');
+    });
   }
 
   /** Merge an update into the pair's last snapshot. The server always sends a full snapshot first. */
@@ -133,6 +167,7 @@ export class MarketStream implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.source?.close();
   }
 }

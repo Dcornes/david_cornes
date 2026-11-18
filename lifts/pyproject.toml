@@ -1,0 +1,18 @@
+# Makes lift_vertical installable so the website backend can use it:
+#   pip install -e ../lifts      (local, from backend/)
+#   pip install /lifts           (Docker)
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lift-vertical"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.27",
+    "python-dotenv>=1.0",  # reads the Strava variables from backend/.env locally
+]
+
+[tool.setuptools.packages.find]
+include = ["lift_vertical*"]

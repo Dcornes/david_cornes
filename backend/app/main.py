@@ -5,12 +5,18 @@ import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.quotes import configured_symbols, router as quotes_router, run_market_data
+from app.lifts import router as lifts_router, run_lifts, run_my_laps, run_routes
+from app.snow import router as snow_router, run_snow
+
+# Local secrets (e.g. Strava) from backend/.env; on Render they come from the environment.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -20,11 +26,19 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Stream exchange quotes in the background for the whole life of the server.
     # Set MARKET_DATA_ENABLED=0 to turn it off (e.g. when working only on the résumé).
-    task = None
+    # Bridger Bowl snow totals are fetched hourly (SNOW_ENABLED=0 turns that off), and
+    # lift data daily (LIFTS_ENABLED=0).
+    tasks = []
     if os.environ.get("MARKET_DATA_ENABLED", "1") != "0":
-        task = asyncio.create_task(run_market_data(configured_symbols()))
+        tasks.append(asyncio.create_task(run_market_data(configured_symbols())))
+    if os.environ.get("SNOW_ENABLED", "1") != "0":
+        tasks.append(asyncio.create_task(run_snow()))
+    if os.environ.get("LIFTS_ENABLED", "1") != "0":
+        tasks.append(asyncio.create_task(run_lifts()))
+        tasks.append(asyncio.create_task(run_my_laps()))  # does nothing without STRAVA_ variables
+        tasks.append(asyncio.create_task(run_routes()))  # lift and run maps for the route map, weekly
     yield
-    if task:
+    for task in tasks:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
@@ -47,6 +61,8 @@ def health() -> dict[str, str]:
 
 
 app.include_router(quotes_router)
+app.include_router(snow_router)
+app.include_router(lifts_router)
 
 
 class SPAStaticFiles(StaticFiles):

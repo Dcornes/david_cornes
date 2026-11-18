@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { SiteNav } from '../site-nav/site-nav';
 import { Direction, FeedState, MarketSnapshot, MarketStream } from './market-stream';
 import { TimeZonePipe } from './time-zone.pipe';
 import { withoutConverted } from './without-converted';
@@ -24,7 +25,7 @@ const FEED_LABELS: Record<FeedView, string> = {
 };
 
 @Component({
-  imports: [DatePipe, RouterLink, TimeZonePipe],
+  imports: [DatePipe, RouterLink, SiteNav, TimeZonePipe],
   providers: [MarketStream],
   selector: 'app-markets-page',
   styleUrl: './markets-page.css',
