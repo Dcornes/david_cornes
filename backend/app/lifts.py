@@ -59,14 +59,13 @@ snow_history = heatmap.SnowHistory()  # new snow per ski day, from SNOTEL
 
 @functools.cache
 def heatmap_shapes() -> dict[str, list[dict]]:
-    """resort -> every run's outline, for resorts with a snow station (from the shipped snapshot)."""
-    pistes = load_snapshot()
-    return {resort: heatmap.run_shapes(pistes[resort]) for resort in heatmap.SNOW_STATIONS if resort in pistes}
+    """resort -> every run's outline (from the shipped snapshot), for every mapped resort."""
+    return {resort: heatmap.run_shapes(pistes) for resort, pistes in load_snapshot().items()}
 
 
 @router.get("/heatmap/runs")
 def heatmap_runs(resort: str = "Big Sky") -> dict:
-    """A resort's runs and lift lines for the powder heatmap (public OpenStreetMap data)."""
+    """A resort's runs and lift lines for the map (public OpenStreetMap data)."""
     shapes = heatmap_shapes()
     if resort not in shapes:
         raise HTTPException(404, f"No run map for {resort}.")

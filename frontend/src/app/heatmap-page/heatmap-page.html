@@ -1,13 +1,16 @@
-<div class="page">
-  <header class="topbar">
-    <h1>
-      <a routerLink="/">David Cornes</a>
-      <span class="muted">Snow heatmap</span>
-    </h1>
-    <app-site-nav />
-  </header>
+<div [class.page]="!embedded()">
+  @if (!embedded()) {
+    <header class="topbar">
+      <h1>
+        <a routerLink="/">David Cornes</a>
+        <span class="muted">Snow heatmap</span>
+      </h1>
+      <app-site-nav />
+    </header>
+  }
 
-  <section aria-labelledby="heatmap-heading">
+  <section aria-labelledby="heatmap-heading" [class.embedded]="embedded()">
+    @if (!embedded()) {
     <div class="resort-toggle" role="group" aria-label="Ski area">
       @for (r of resorts; track r) {
         <button type="button" [class.active]="resort() === r" [attr.aria-pressed]="resort() === r" (click)="setResort(r)">
@@ -15,7 +18,9 @@
         </button>
       }
     </div>
-    <h2 id="heatmap-heading">Where I ski on powder days at {{ resort() }}</h2>
+    }
+    <h2 id="heatmap-heading">{{ heatAvailable() ? 'Where I ski on powder days' + (embedded() ? '' : ' at ' + resort()) : 'Map' }}</h2>
+    @if (heatAvailable()) {
     <p class="muted note">
       Everywhere I've skied on days with at least {{ minSnow() }}″ of new snow in the 48 hours before, redder the more
       often, from my Strava GPS.
@@ -29,13 +34,25 @@
       } @else {
         New snow is the rise in snow depth to 7 am at the
         @if (heat()?.station; as s) {
-          <a [href]="s.url" target="_blank" rel="noopener">{{ s.name }}</a> station ({{ s.elevation_ft | number }} ft).
+          <a [href]="s.url" target="_blank" rel="noopener">{{ s.name }}</a>@if (s.elevation_ft) { ({{ s.elevation_ft | number }} ft)}.
         } @else {
           nearest SNOTEL station.
         }
       }
     </p>
+    } @else {
+      <p class="muted note">
+        Lifts and runs from OpenStreetMap on 3D terrain. I haven't skied here on Strava yet, so there's no heatmap.
+      </p>
+    }
 
+    @if (heatAvailable()) {
+    @if (lowered()) {
+      <p class="muted note">
+        None of my {{ heat()?.days_with_runs }} days here had {{ defaultSnow }}″ or more of new snow (the most was
+        {{ heat()?.snow_amounts?.[0] }}″), so this starts with all of them.
+      </p>
+    }
     <div class="controls">
       <label class="threshold">
         <span>New snow in the last 48 hours, at least</span>
@@ -69,6 +86,19 @@
         </dl>
       }
     </div>
+    }
+
+    @if (embedded()) {
+      <div class="layers" role="group" aria-label="Map layers">
+        <span class="muted">Show:</span>
+        @if (heatAvailable()) {
+          <label><input type="checkbox" [checked]="showHeat()" (change)="showHeat.set($any($event.target).checked)" /> Powder heat</label>
+        }
+        @if (bestLap()) {
+          <label><input type="checkbox" [checked]="showLap()" (change)="showLap.set($any($event.target).checked)" /> Best lap <span class="lap-key" aria-hidden="true"></span></label>
+        }
+      </div>
+    }
 
     @if (error(); as e) {
       <p class="empty">{{ e }}</p>
@@ -81,11 +111,20 @@
           [counts]="heat()?.counts ?? {}"
           [heat]="heat()?.heat ?? null"
           [lifts]="s.lifts"
-          [label]="'Heatmap of where I skied at ' + s.resort + ' on powder days'"
+          [bearing]="bearing()"
+          [bestLap]="bestLap()"
+          [showHeat]="showHeat() && heatAvailable()"
+          [showLap]="showLap()"
+          [label]="(heatAvailable() ? 'Heatmap of where I skied at ' : 'Map of ') + s.resort"
         />
         <figcaption class="legend">
-          <span class="legend-title">Where I skied</span>
-          <span class="key">less <span class="ramp" [style.background]="ramp"></span> more often</span>
+          @if (heatAvailable()) {
+            <span class="legend-title">Where I skied</span>
+            <span class="key">less <span class="ramp" [style.background]="ramp"></span> more often</span>
+          }
+          @if (bestLap(); as lap) {
+            <span class="key"><span class="lap-key"></span>best lap: {{ lap.lift }}</span>
+          }
           <span class="key"><span class="swatch none"></span>run</span>
           <span class="key"><span class="swatch lift"></span>lift</span>
         </figcaption>
@@ -130,6 +169,7 @@
       <p class="empty">No runs on days with {{ minSnow() }}″ or more. Try a lower threshold.</p>
     }
 
+    @if (heatAvailable()) {
     <p class="muted footer">
       The heatmap sums every pass through each 10 m square over those days, lift rides included. In the table, a run
       counts once each time I skied down it (at least 10 seconds on it, matched to OpenStreetMap's runs); a run made of
@@ -141,5 +181,6 @@
       Only totals over the chosen days are published, never single tracks or dates. Map data © OpenStreetMap contributors; snow data USDA
       NRCS SNOTEL.
     </p>
+    }
   </section>
 </div>

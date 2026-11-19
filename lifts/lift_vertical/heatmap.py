@@ -30,10 +30,18 @@ AWDB_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1/data"
 STATION_PAGE = "https://wcc.sc.egov.usda.gov/nwcc/site?sitenum={number}"
 # resort -> SNOTEL stations as (triplet, name, elevation in feet), best first. A season the first
 # station has no readings for (Brackett Creek has none for 2023-24) comes from the next.
+# Stations starting "bc:" are British Columbia's automated snow stations (no SNOTEL in Canada).
 SNOW_STATIONS = {
     "Big Sky": [("590:MT:SNTL", "Lone Mountain", 8820)],
     "Bridger Bowl": [("365:MT:SNTL", "Brackett Creek", 7370), ("929:MT:SNTL", "Sacajawea", 6610)],
+    "Jackson Hole": [("689:WY:SNTL", "Phillips Bench", 8170)],
+    "Grand Targhee": [("1082:WY:SNTL", "Grand Targhee", 9260)],
+    # Rogers Pass is in the same Selkirk range, about 50 km east; Revelstoke has no station of its own.
+    "Revelstoke": [("bc:2A34P", "Glacier NP Rogers Pass Lower", None)],
 }
+BC_SNOW_URL = "https://www.env.gov.bc.ca/wsd/data_searches/snow/asws/data/{file}"
+BC_SNOW_PAGE = "https://www.env.gov.bc.ca/wsd/data_searches/snow/asws/"
+CM_PER_INCH = 2.54
 BRIDGER_API = "https://api.bridgerbowl.com/graphql"
 BRIDGER_SOURCE = "Bridger Bowl snow report (48 h)"
 MORNING_PST = 6  # SNOTEL hours are Pacific Standard Time: 6 am PST is 7 am in Montana
@@ -142,7 +150,35 @@ def morning_reports(reports: list[dict]) -> dict[str, float]:
     return result
 
 
+async def fetch_bc_depths(client: httpx.AsyncClient, code: str, begin: date, end: date) -> dict[datetime, float]:
+    """Hourly snow depth (inches, keyed by Pacific Standard Time like SNOTEL) from a BC station:
+    this water year's file, or the full archive (about 40 MB) for older days."""
+    import csv
+    import io
+
+    water_year = date.today().year if date.today().month >= 10 else date.today().year - 1
+    file = "SD.csv" if begin >= date(water_year, 10, 1) else "SD_Archive.csv"
+    response = await client.get(BC_SNOW_URL.format(file=file), timeout=180)
+    response.raise_for_status()
+    rows = csv.reader(io.StringIO(response.text))
+    header = next(rows)
+    column = next((i for i, name in enumerate(header) if name.startswith(code)), None)
+    if column is None:
+        return {}
+    first, last = datetime(begin.year, begin.month, begin.day), datetime(end.year, end.month, end.day, 23)
+    depths = {}
+    for row in rows:
+        if len(row) <= column or not row[column]:
+            continue
+        pst = datetime.fromisoformat(row[0]) - timedelta(hours=8)  # the file is in UTC
+        if first <= pst <= last:
+            depths[pst] = float(row[column]) / CM_PER_INCH
+    return depths
+
+
 async def fetch_depths(client: httpx.AsyncClient, triplet: str, begin: date, end: date) -> dict[datetime, float]:
+    if triplet.startswith("bc:"):
+        return await fetch_bc_depths(client, triplet[3:], begin, end)
     params = {"stationTriplets": triplet, "elements": "SNWD", "duration": "HOURLY",
               "beginDate": f"{begin:%Y-%m-%d} 00:00", "endDate": f"{end:%Y-%m-%d} 12:00"}
     for attempt in range(3):  # the service sometimes answers 403 or 5xx to a quick run of requests
@@ -178,7 +214,9 @@ def heatmap(days: list[SkiDay], resort: str, min_snow: float, snow: SnowHistory)
             counts[run] += n
         for x, y, n in day.heat or []:
             cells[(x, y)] += n
-    stations = [{"name": f"{name} SNOTEL", "elevation_ft": elevation, "url": STATION_PAGE.format(number=triplet.split(":")[0])}
+    stations = [{"name": f"{name} snow station" if triplet.startswith("bc:") else f"{name} SNOTEL",
+                 "elevation_ft": elevation,
+                 "url": BC_SNOW_PAGE if triplet.startswith("bc:") else STATION_PAGE.format(number=triplet.split(":")[0])}
                 for triplet, name, elevation in SNOW_STATIONS.get(resort, [])]
     return {
         "resort": resort,

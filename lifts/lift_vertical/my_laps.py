@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 
 MAX_DAYS: int | None = None  # every ski day on Strava
 # Saved days at these resorts get their runs worked out (one more GPS download each, then kept).
-BACKFILL_RUNS_RESORTS = ("Big Sky", "Bridger Bowl")
+BACKFILL_RUNS_RESORTS = ("Big Sky", "Bridger Bowl", "Jackson Hole", "Grand Targhee", "Revelstoke")
 STRAVA_PACE_SECONDS = 9.5  # between GPS downloads: Strava allows 100 requests per 15 minutes
 REFRESH_SECONDS = 6 * 60 * 60
 RETRY_SECONDS = 30 * 60

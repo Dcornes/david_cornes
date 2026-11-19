@@ -10,19 +10,18 @@ export const routes: Routes = [
     title: 'Live markets · David Cornes',
   },
   {
-    path: 'snow',
-    loadComponent: () => import('./snow-page/snow-page').then((m) => m.SnowPage),
-    title: 'Snow report · David Cornes',
+    path: 'ski',
+    loadComponent: () => import('./ski-page/ski-page').then((m) => m.SkiPage),
+    title: 'Skiing · David Cornes',
   },
   {
-    path: 'lifts',
-    loadComponent: () => import('./lifts-page/lifts-page').then((m) => m.LiftsPage),
-    title: 'Ski lift vertical · David Cornes',
+    path: 'ski/:resort',
+    loadComponent: () => import('./ski-page/ski-page').then((m) => m.SkiPage),
+    title: 'Skiing · David Cornes',
   },
-  {
-    path: 'heatmap',
-    loadComponent: () => import('./heatmap-page/heatmap-page').then((m) => m.HeatmapPage),
-    title: 'Snow heatmap · David Cornes',
-  },
+  // The skiing pages were merged into /ski; old links still work.
+  { path: 'snow', redirectTo: 'ski' },
+  { path: 'lifts', redirectTo: 'ski' },
+  { path: 'heatmap', redirectTo: 'ski/big-sky' },
   { path: '**', redirectTo: '' },
 ];

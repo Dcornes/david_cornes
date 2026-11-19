@@ -383,3 +383,9 @@ td.mine {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Inside the Skiing page --- */
+.route-plan.text-only {
+  grid-template-columns: 1fr;
+  max-width: 44rem;
+}

@@ -1,8 +1,9 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, input, OnInit, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SiteNav } from '../site-nav/site-nav';
 import { LatLon, RouteMap } from './route-map';
+import type { BestLap } from '../heatmap-page/run-heatmap';
 
 export interface Lift {
   resort: string;
@@ -137,6 +138,11 @@ export function liftDay(
   templateUrl: './lifts-page.html',
 })
 export class LiftsPage implements OnInit {
+  /** Inside the Skiing page: no header or resort chips; one resort (or all) chosen by the page. */
+  readonly embedded = input(false);
+  readonly only = input<string | null>(null);
+  /** The best lift to lap at the chosen resort, for the page's map. */
+  readonly bestLap = output<BestLap | null>();
   protected readonly data = signal<LiftData | null>(null);
   protected readonly error = signal<string | null>(null);
   /** Your lap times from Strava; null until loaded, or when there are none. */
@@ -206,6 +212,10 @@ export class LiftsPage implements OnInit {
   }
 
   constructor() {
+    effect(() => {
+      const best = this.plan()?.best;
+      this.bestLap.emit(best ? { lift: best.osm.name, line: best.osm.line, route: best.osm.route!.points } : null);
+    });
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.timer);
       clearTimeout(this.mapTimer);
@@ -213,6 +223,10 @@ export class LiftsPage implements OnInit {
   }
 
   ngOnInit(): void {
+    if (this.embedded()) {
+      this.resort.set(this.only());
+      this.mapResort.set(this.only());
+    }
     void this.load();
     void this.loadMine();
     void this.loadMaps();

@@ -1,15 +1,17 @@
-<div class="page">
-  <header class="topbar">
-    <h1>
-      <a routerLink="/">David Cornes</a>
-      <span class="muted">Ski lift vertical</span>
-    </h1>
-    <app-site-nav />
-  </header>
+<div [class.page]="!embedded()">
+  @if (!embedded()) {
+    <header class="topbar">
+      <h1>
+        <a routerLink="/">David Cornes</a>
+        <span class="muted">Ski lift vertical</span>
+      </h1>
+      <app-site-nav />
+    </header>
+  }
 
   @if (data(); as d) {
-    <section aria-labelledby="lifts-heading">
-      <h2 id="lifts-heading">Lift vertical and laps per day</h2>
+    <section aria-labelledby="lifts-heading" [class.embedded]="embedded()">
+      <h2 id="lifts-heading">{{ embedded() ? 'Lifts' : 'Lift vertical and laps per day' }}</h2>
       <p class="muted note">
         How much vertical each operating lift gives you: per minute of riding, per minute of a whole lap, and over a
         full day of laps on it. A lap is the ride up, the run down at the speed below, plus a little time to load and
@@ -46,12 +48,14 @@
         </p>
       }
 
+      @if (!embedded()) {
       <div class="filters" role="group" aria-label="Ski area">
         <button type="button" [class.active]="resort() === null" (click)="resort.set(null)">All</button>
         @for (r of d.resorts; track r) {
           <button type="button" [class.active]="resort() === r" (click)="resort.set(r)">{{ r }}</button>
         }
       </div>
+      }
 
       <div class="table-wrap">
         <table>
@@ -102,20 +106,24 @@
       <p class="muted note sort-note">Select a column heading to sort by it.</p>
     </section>
 
-    <section aria-labelledby="route-heading">
-      <h2 id="route-heading">Best route for the most vert</h2>
+    @if (!embedded() || resort() !== null) {
+    <section aria-labelledby="route-heading" [class.embedded]="embedded()">
+      <h2 id="route-heading">{{ embedded() ? 'Best lap' : 'Best route for the most vert' }}</h2>
       @if (plan(); as p) {
         <p class="muted note">
           The lift to lap all day for the most vertical at the settings above, and the shortest mapped way back down
-          to its bottom. Change the ski-down speed or lift hours and the pick updates.
+          to its bottom{{ embedded() ? ' (in blue on the map)' : '' }}. Change the ski-down speed or lift hours and the
+          pick updates.
         </p>
+        @if (!embedded()) {
         <div class="filters" role="group" aria-label="Ski area for the route">
           @for (m of maps(); track m.resort) {
             <button type="button" [class.active]="p.resort === m.resort" (click)="mapResort.set(m.resort)">{{ m.resort }}</button>
           }
         </div>
+        }
         @if (p.best; as best) {
-          <div class="route-plan">
+          <div class="route-plan" [class.text-only]="embedded()">
             <div class="route-text">
               <p class="route-lead">
                 Lap <strong>{{ best.day.name }}</strong>:
@@ -155,12 +163,14 @@
                 </p>
               }
             </div>
-            <app-route-map
-              [lifts]="p.map.lifts"
-              [chosen]="best.osm.name"
-              [route]="best.osm.route!.points"
-              [label]="'Map of ' + p.resort + ' with the ' + best.day.name + ' lift and its ski route'"
-            />
+            @if (!embedded()) {
+              <app-route-map
+                [lifts]="p.map.lifts"
+                [chosen]="best.osm.name"
+                [route]="best.osm.route!.points"
+                [label]="'Map of ' + p.resort + ' with the ' + best.day.name + ' lift and its ski route'"
+              />
+            }
           </div>
         } @else {
           <p class="muted note">No mapped route for {{ p.resort }}'s lifts yet.</p>
@@ -173,6 +183,7 @@
         <p class="muted note">Loading lift maps… (they load a few minutes after the site starts).</p>
       }
     </section>
+    }
 
     <footer class="footer muted">
       Lift specifications from <a [href]="d.source" target="_blank" rel="noopener">Lift Blog</a>, checked daily. Ride

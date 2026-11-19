@@ -18,6 +18,25 @@ def test_new_snow_is_the_storm_rise_over_48_hours_ignoring_glitches_and_settling
     assert heatmap.new_snow(readings, date(2025, 1, 2)) == 10.0  # 40 -> 50, settling included
 
 
+def test_bc_station_depths_are_read_in_inches_and_pacific_time(monkeypatch) -> None:
+    import asyncio
+
+    class Response:
+        status_code = 200
+        text = "DATE(UTC),2A30P Colpitti Creek,2A34P Glacier NP Rogers Pass Lower\n2025-03-14 14:00,10,254\n2025-03-14 15:00,,\n"
+
+        def raise_for_status(self):
+            pass
+
+    class Client:
+        async def get(self, url, timeout):
+            assert url.endswith("SD_Archive.csv")  # an old day: the archive
+            return Response()
+
+    depths = asyncio.run(heatmap.fetch_depths(Client(), "bc:2A34P", date(2025, 3, 13), date(2025, 3, 14)))
+    assert depths == {datetime(2025, 3, 14, 6): 100.0}  # 14:00 UTC is 6 am PST; 254 cm is 100 in
+
+
 def test_new_snow_is_unknown_without_enough_readings() -> None:
     assert heatmap.new_snow(depths(datetime(2025, 1, 1, 1), [40.0] * 5), date(2025, 1, 2)) is None
 

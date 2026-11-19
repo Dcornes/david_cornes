@@ -277,3 +277,36 @@ td .swatch {
     max-width: 14rem;
   }
 }
+
+/* --- Inside the Skiing page --- */
+section.embedded {
+  padding-top: 0;
+}
+
+.layers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}
+
+.layers label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.layers input {
+  accent-color: #fc5200;
+}
+
+.lap-key {
+  display: inline-block;
+  width: 1.4rem;
+  height: 0;
+  border-top: 3px dashed #1f5fa8;
+  vertical-align: middle;
+}

@@ -338,3 +338,42 @@ tbody th {
     text-align: left;
   }
 }
+
+/* --- One resort, inside the Skiing page --- */
+.today {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.today .summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+}
+
+.today .updated {
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+}
+
+.today .updated a {
+  text-decoration: underline;
+}
+
+.today .message {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.today-cam figure {
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .today {
+    grid-template-columns: 1fr;
+  }
+}

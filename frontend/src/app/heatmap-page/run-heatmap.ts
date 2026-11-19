@@ -116,6 +116,13 @@ function escapeHtml(text: string): string {
 }
 
 export type Basemap = 'map' | 'satellite';
+
+/** The best lift to lap and its way back down, drawn on the map. */
+export interface BestLap {
+  lift: string;
+  line: LatLon[];
+  route: LatLon[];
+}
 export type View = '3d' | '2d';
 const PITCH_3D = 60;
 const EXAGGERATION = 1.3;
@@ -247,6 +254,9 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
   readonly label = input('Ski heatmap');
   /** Which way the camera looks (degrees from north): west, up the mountain, by default. */
   readonly bearing = input(-100);
+  readonly bestLap = input<BestLap | null>(null);
+  readonly showHeat = input(true);
+  readonly showLap = input(true);
   protected readonly basemap = signal<Basemap>('map');
   protected readonly view = signal<View>('3d');
 
@@ -259,6 +269,29 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
   constructor() {
     effect(() => this.setRuns(this.runs(), this.counts(), this.lifts()));
     effect(() => this.setHeat(this.heat()));
+    effect(() => this.setLap(this.bestLap(), this.showLap()));
+    effect(() => {
+      const visible = this.showHeat();
+      if (this.map && this.ready) {
+        this.map.setLayoutProperty('heat', 'visibility', visible ? 'visible' : 'none');
+      }
+    });
+  }
+
+  private setLap(lap: BestLap | null, visible: boolean): void {
+    const map = this.map;
+    if (!map || !this.ready) {
+      return;
+    }
+    const flip = (points: LatLon[]) => points.map(([lat, lon]) => [lon, lat]);
+    const features: GeoJSON.Feature[] =
+      lap && visible
+        ? [
+            { type: 'Feature', properties: { kind: 'route' }, geometry: { type: 'LineString', coordinates: flip(lap.route) } },
+            { type: 'Feature', properties: { kind: 'lift', name: lap.lift }, geometry: { type: 'LineString', coordinates: flip(lap.line) } },
+          ]
+        : [];
+    (map.getSource('lap') as MapLibre.GeoJSONSource).setData({ type: 'FeatureCollection', features });
   }
 
   protected setBasemap(basemap: Basemap): void {
@@ -360,6 +393,7 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
             },
           },
           lifts: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+          lap: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
         },
         layers: [
           { id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-saturation': -0.25, 'raster-opacity': 0.9 } },
@@ -419,6 +453,23 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
             source: 'lifts',
             paint: { 'line-color': '#2f2f2f', 'line-width': 1.5, 'line-dasharray': [1, 2], 'line-opacity': 0.85 },
           },
+          // The best lap: its lift solid and the way back down dashed, in blue (apart from the heat).
+          {
+            id: 'lap-route',
+            type: 'line',
+            source: 'lap',
+            filter: ['==', ['get', 'kind'], 'route'],
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': '#1f5fa8', 'line-width': 3.5, 'line-dasharray': [2, 1.5], 'line-opacity': 0.95 },
+          },
+          {
+            id: 'lap-lift',
+            type: 'line',
+            source: 'lap',
+            filter: ['==', ['get', 'kind'], 'lift'],
+            layout: { 'line-cap': 'round' },
+            paint: { 'line-color': '#1f5fa8', 'line-width': 4.5 },
+          },
           // Invisible wide lines to make thin runs easy to hover.
           {
             id: 'run-hover',
@@ -462,6 +513,8 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
       }
       this.setRuns(this.runs(), this.counts(), this.lifts());
       this.setHeat(this.heat());
+      this.setLap(this.bestLap(), this.showLap());
+      map.setLayoutProperty('heat', 'visibility', this.showHeat() ? 'visible' : 'none');
     });
   }
 
@@ -523,7 +576,7 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
     const camera = map.cameraForBounds(bounds, { padding: 40, bearing: this.view() === '2d' ? 0 : this.bearing() });
     if (camera) {
       const flat = this.view() === '2d';
-      map.jumpTo({ ...camera, zoom: (camera.zoom ?? 13) + 0.1, pitch: flat ? 0 : PITCH_3D, bearing: flat ? 0 : this.bearing() });
+      map.jumpTo({ ...camera, zoom: (camera.zoom ?? 13) + (flat ? 0.1 : -0.25), pitch: flat ? 0 : PITCH_3D, bearing: flat ? 0 : this.bearing() });
     }
   }
 }

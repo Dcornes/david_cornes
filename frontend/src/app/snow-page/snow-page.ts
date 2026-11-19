@@ -1,5 +1,5 @@
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 import { TimeZonePipe } from '../markets-page/time-zone.pipe';
@@ -70,8 +70,16 @@ const OPENED_KEY = 'snow.opened';
   templateUrl: './snow-page.html',
 })
 export class SnowPage implements OnInit {
+  /** Inside the Skiing page: no header, and optionally just one resort (by id), shown open. */
+  readonly embedded = input(false);
+  readonly resort = input<string | null>(null);
   private readonly sanitizer = inject(DomSanitizer);
   protected readonly data = signal<SnowData | null>(null);
+  protected readonly shown = computed(() => {
+    const resorts = this.data()?.resorts ?? [];
+    const only = this.resort();
+    return only ? resorts.filter((r) => r.id === only) : resorts;
+  });
   protected readonly error = signal<string | null>(null);
   /** Resort ids the viewer opened; the rest are collapsed (showing only a thumbnail of their featured webcam). */
   protected readonly opened = signal<Set<string>>(loadOpened());
@@ -113,7 +121,7 @@ export class SnowPage implements OnInit {
   }
 
   protected isOpen(resort: Resort): boolean {
-    return this.opened().has(resort.id);
+    return this.resort() !== null || this.opened().has(resort.id);
   }
 
   protected setOpen(resort: Resort, open: boolean): void {

@@ -133,9 +133,7 @@ import { filter } from 'rxjs';
 export class SiteNav {
   protected readonly projects = [
     { path: '/markets', label: 'Live markets' },
-    { path: '/snow', label: 'Snow' },
-    { path: '/lifts', label: 'Ski lift vertical' },
-    { path: '/heatmap', label: 'Snow heatmap' },
+    { path: '/ski', label: 'Skiing' },
   ];
   protected readonly open = signal(false);
   protected readonly onProject = signal(false);

@@ -1,0 +1,112 @@
+.page {
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+/* --- Top bar (matches the other pages) --- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: clamp(2rem, 6vh, 4rem);
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+h1 a {
+  transition: opacity 0.15s;
+}
+
+h1 a:hover {
+  opacity: 0.6;
+}
+
+h1 .muted {
+  display: block;
+  font-weight: 400;
+}
+
+/* --- Resort switcher: pills, the chosen one filled --- */
+.resorts {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 -2rem;
+  padding: 1rem 2rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.resorts a {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.resorts a:hover {
+  border-color: var(--text);
+}
+
+.resorts a.active {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.resort-name {
+  margin-top: 2rem;
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.block {
+  margin-top: 2.5rem;
+}
+
+.block-title {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+@media (max-width: 860px) {
+  .page {
+    padding: 1rem;
+  }
+
+  .resorts {
+    margin: 0 -1rem;
+    padding: 0.75rem 1rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .resorts a {
+    flex: none;
+  }
+}

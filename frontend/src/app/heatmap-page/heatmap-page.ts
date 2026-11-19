@@ -1,8 +1,8 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SiteNav } from '../site-nav/site-nav';
-import { DIFFICULTY_LABELS, HEAT_STOPS, heatBin, HeatGrid, LatLon, RunHeatmap, RunShape } from './run-heatmap';
+import { BestLap, DIFFICULTY_LABELS, HEAT_STOPS, heatBin, HeatGrid, LatLon, RunHeatmap, RunShape } from './run-heatmap';
 
 /** What /api/lifts/heatmap/runs returns: a resort's runs and lifts (OpenStreetMap). */
 export interface ResortRuns {
@@ -18,8 +18,8 @@ export interface Heatmap {
   resort: string;
   min_snow: number;
   snow_source: { name: string; url: string } | null; // the resort's own snow reports, when used
-  station: { name: string; elevation_ft: number; url: string } | null;
-  backup_stations: { name: string; elevation_ft: number; url: string }[];
+  station: { name: string; elevation_ft: number | null; url: string } | null;
+  backup_stations: { name: string; elevation_ft: number | null; url: string }[];
   days_with_runs: number;
   days_unknown_snow: number;
   days: number;
@@ -64,8 +64,18 @@ export const HEATMAP_RESORTS = ['Big Sky', 'Bridger Bowl'];
   templateUrl: './heatmap-page.html',
 })
 export class HeatmapPage implements OnInit {
+  /** Inside the Skiing page: no header or resort toggle; the page picks the resort. */
+  readonly embedded = input(false);
+  readonly only = input<string | null>(null);
+  /** Whether there's powder heat for this resort (otherwise just the map). */
+  readonly heatAvailable = input(true);
+  readonly bearing = input(-100);
+  readonly bestLap = input<BestLap | null>(null);
+  protected readonly showHeat = signal(true);
+  protected readonly showLap = signal(true);
   protected readonly ramp = `linear-gradient(to right, ${HEAT_STOPS.map(([at, c]) => `${c} ${at * 100}%`).join(', ')})`;
   protected readonly difficulty = DIFFICULTY_LABELS;
+  protected readonly defaultSnow = DEFAULT_MIN_SNOW;
   protected readonly resorts = HEATMAP_RESORTS;
   protected readonly resort = signal(HEATMAP_RESORTS[0]);
   protected readonly minSnow = signal(DEFAULT_MIN_SNOW);
@@ -74,6 +84,9 @@ export class HeatmapPage implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly loading = signal(false);
   protected readonly showAll = signal(false);
+  /** Set when none of my days here reached the default, so the slider started at 0 instead. */
+  protected readonly lowered = signal(false);
+  private firstHeat = true;
   private timer?: ReturnType<typeof setTimeout>;
   private request = 0;
 
@@ -93,8 +106,13 @@ export class HeatmapPage implements OnInit {
   }
 
   ngOnInit(): void {
+    if (this.embedded() && this.only()) {
+      this.resort.set(this.only()!);
+    }
     void this.loadShapes();
-    void this.loadHeat();
+    if (this.heatAvailable()) {
+      void this.loadHeat();
+    }
   }
 
   protected setResort(resort: string): void {
@@ -146,7 +164,17 @@ export class HeatmapPage implements OnInit {
         return; // a newer threshold was asked for meanwhile
       }
       if (response.ok) {
-        this.heat.set(await response.json());
+        const heat: Heatmap = await response.json();
+        if (this.firstHeat && !heat.days && heat.snow_amounts.length && this.minSnow() > 0) {
+          // No deep days here: start from all my days instead of an empty map.
+          this.firstHeat = false;
+          this.lowered.set(true);
+          this.minSnow.set(0);
+          void this.loadHeat();
+          return;
+        }
+        this.firstHeat = false;
+        this.heat.set(heat);
         this.error.set(null);
       } else {
         this.error.set(
