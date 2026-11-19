@@ -19,3 +19,15 @@ describe('heatmap', () => {
     ]);
   });
 });
+
+describe('heatLines', () => {
+  it('joins neighbouring cells once each, coloured by the hotter cell', async () => {
+    const { heatLines } = await import('./run-heatmap');
+    // An L of three cells, plus one cell off on its own.
+    const lines = heatLines({ cell_m: 10, center: [45, -111], cells: [[0, 0, 1], [1, 0, 1], [1, 1, 9], [5, 5, 1]] });
+    const segments = lines.flatMap((f) => f.geometry.coordinates);
+    expect(segments.length).toBe(4); // (0,0)-(1,0), (0,0)-(1,1), (1,0)-(1,1), and the lone cell's dot
+    const hottest = lines[lines.length - 1];
+    expect(hottest.geometry.coordinates.length).toBe(2); // both segments touching the busy cell
+  });
+});

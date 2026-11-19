@@ -24,9 +24,10 @@
                 "input": "public"
               }
             ],
-            "allowedCommonJsDependencies": ["leaflet"],
+            "allowedCommonJsDependencies": ["leaflet", "maplibre-gl"],
             "styles": [
               "node_modules/leaflet/dist/leaflet.css",
+              "node_modules/maplibre-gl/dist/maplibre-gl.css",
               "src/styles.css"
             ]
           },
