@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- "DC" in the site's eggshell on its charcoal text colour. -->
+  <rect width="64" height="64" rx="14" fill="#4a4a4a"/>
+  <g fill="none" stroke="#f0ead6" stroke-width="6">
+    <path d="M11 18H16A14 14 0 0 1 16 46H11Z" stroke-linejoin="miter"/>
+    <path d="M56.7 21.3A12 14 0 1 0 56.7 42.7"/>
+  </g>
+</svg>
