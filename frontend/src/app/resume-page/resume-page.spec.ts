@@ -37,8 +37,24 @@ describe('ResumePage', () => {
     });
   });
 
-  it('links to the live markets page', () => {
-    expect(render().querySelector('a[href="/markets"]')?.textContent).toContain('Live markets');
+  it('links to the project pages from the Projects menu', () => {
+    const fixture = TestBed.createComponent(ResumePage);
+    fixture.detectChanges();
+    const page = fixture.nativeElement as HTMLElement;
+    const button = page.querySelector<HTMLButtonElement>('.menu-button')!;
+    expect(button.textContent).toContain('Projects');
+    expect(page.querySelector('a[href="/markets"]')).toBeNull(); // closed by default
+
+    button.click();
+    fixture.detectChanges();
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(page.querySelector('a[href="/markets"]')?.textContent).toContain('Live markets');
+    expect(page.querySelector('a[href="/snow"]')?.textContent).toContain('Snow');
+    expect(page.querySelector('a[href="/lifts"]')?.textContent).toContain('Ski lift vertical');
+
+    document.body.click(); // a click elsewhere closes it
+    fixture.detectChanges();
+    expect(page.querySelector('a[href="/markets"]')).toBeNull();
   });
 
   it('renders skills and education', () => {

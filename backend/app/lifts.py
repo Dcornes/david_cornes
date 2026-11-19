@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from lift_vertical.liftblog import LiftCache, run_lift_updates
+from lift_vertical.day_store import PostgresDays
 from lift_vertical.my_laps import DEFAULT_CACHE, MyLapsCache, run_my_laps_updates
 from lift_vertical.routes import RouteCache, run_route_updates
 
@@ -54,6 +55,7 @@ async def run_lifts() -> None:
 
 async def run_my_laps() -> None:
     await asyncio.sleep(5)  # let the Lift Blog data load first, for matching lift names
+    my_laps.store = PostgresDays.from_env()  # read here: backend/.env is loaded after this module
     await run_my_laps_updates(my_laps, lambda: cache.latest, on_new_days=lambda count: route_refresh.set())
 
 

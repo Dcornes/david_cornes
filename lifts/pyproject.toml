@@ -12,6 +12,7 @@ requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.27",
     "python-dotenv>=1.0",  # reads the Strava variables from backend/.env locally
+    "psycopg[binary]>=3.2",  # keeps analysed ski days in Postgres when DATABASE_URL is set
 ]
 
 [tool.setuptools.packages.find]

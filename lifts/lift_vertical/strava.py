@@ -85,16 +85,16 @@ class Strava:
         response.raise_for_status()
         return response.json()
 
-    async def ski_activities(self, limit: int) -> list[dict]:
-        """Newest ski and snowboard activities first, up to `limit`."""
+    async def ski_activities(self, limit: int | None = None) -> list[dict]:
+        """Newest ski and snowboard activities first, up to `limit` (all of them when None)."""
         found, page = [], 1
-        while len(found) < limit:
+        while limit is None or len(found) < limit:
             batch = await self._get("/athlete/activities", per_page=100, page=page)
             found += [a for a in batch if a.get("sport_type") in SKI_SPORTS]
             if len(batch) < 100:
                 break
             page += 1
-        return found[:limit]
+        return found if limit is None else found[:limit]
 
     async def track(self, activity_id: int) -> Track | None:
         """The activity's GPS track, or None if it has no GPS (e.g. recorded indoors)."""

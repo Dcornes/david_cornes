@@ -20,13 +20,15 @@ from pathlib import Path
 
 import httpx
 
+from .day_store import PostgresDays
 from .aerialways import AerialwayCache, name_key, resort_near
 from .laps import FEET_PER_METER, Lap, Ride, find_laps, find_rides, summarize_lift
 from .strava import Credentials, Strava, StravaError
 
 log = logging.getLogger(__name__)
 
-MAX_DAYS = 60  # newest ski days to analyse (Strava allows 100 requests per 15 minutes)
+MAX_DAYS: int | None = None  # every ski day on Strava
+STRAVA_PACE_SECONDS = 9.5  # between GPS downloads: Strava allows 100 requests per 15 minutes
 REFRESH_SECONDS = 6 * 60 * 60
 RETRY_SECONDS = 30 * 60
 # Analysed days (lift names and timings only), shared by the backend and this script locally.
@@ -38,11 +40,13 @@ class MyLapsCache:
     and loaded at start, so a restart doesn't analyse everything again. The file holds only
     lift names and timings per Strava activity id (no GPS, no dates)."""
 
-    def __init__(self, file: Path | None = None) -> None:
+    def __init__(self, file: Path | None = None, store: PostgresDays | None = None) -> None:
         self.days: dict[int, tuple[str | None, list[Ride], list[Lap]]] = {}  # activity id -> (resort, rides, laps)
         self.latest: dict | None = None
         self.error: str | None = None
         self.file = file
+        self.store = store  # Postgres, when DATABASE_URL is set: keeps days across deploys
+        self.synced = False
         if file and file.exists():
             try:
                 saved = json.loads(file.read_text(encoding="utf-8"))
@@ -63,6 +67,34 @@ class MyLapsCache:
         }
         self.file.parent.mkdir(parents=True, exist_ok=True)
         self.file.write_text(json.dumps(data), encoding="utf-8")
+
+    async def sync_store(self) -> None:
+        """Merge the database's days with these, and upload any it's missing (once per start)."""
+        if not self.store or self.synced:
+            return
+        try:
+            stored = await asyncio.to_thread(self.store.load)
+            missing = {key: day for key, day in self.days.items() if key not in stored}
+            await asyncio.to_thread(self.store.save, missing)
+        except Exception as error:  # noqa: BLE001 - the database is optional; keep going without it
+            log.warning("Couldn't reach the lap database (%s); trying again next check", error)
+            return
+        added = len(stored.keys() - self.days.keys())
+        self.days.update(stored)
+        self.synced = True
+        log.info("Lap database: %d days loaded, %d new here, %d uploaded", len(stored), added, len(missing))
+        if added:
+            self.save()
+
+    async def record(self, activity_id: int) -> None:
+        """Save one newly analysed day to the file and the database."""
+        self.save()
+        if self.store and self.synced:
+            try:
+                await asyncio.to_thread(self.store.save, {activity_id: self.days[activity_id]})
+            except Exception as error:  # noqa: BLE001
+                log.warning("Couldn't save a day to the lap database (%s); it's uploaded on the next start", error)
+                self.synced = False  # the next check syncs again, uploading what's missing
 
 
 def summarize(days: dict[int, tuple[str | None, list[Ride], list[Lap]]], liftblog_names: dict[str, dict[str, str]]) -> dict:
@@ -102,6 +134,7 @@ def summarize(days: dict[int, tuple[str | None, list[Ride], list[Lap]]], liftblo
 async def update(cache: MyLapsCache, strava: Strava, client: httpx.AsyncClient, aerialways: AerialwayCache,
                  liftblog_names: dict[str, dict[str, str]]) -> int:
     """Analyse any new ski days. Returns how many were new."""
+    await cache.sync_store()
     before = len(cache.days)
     if cache.days and cache.latest is None:
         cache.latest = summarize(cache.days, liftblog_names)  # saved days, while new ones are checked
@@ -112,6 +145,8 @@ async def update(cache: MyLapsCache, strava: Strava, client: httpx.AsyncClient, 
         track = await strava.track(activity["id"])
         if track is None:
             cache.days[activity["id"]] = (None, [], [])
+            await cache.record(activity["id"])
+            await asyncio.sleep(STRAVA_PACE_SECONDS)
             continue
         try:
             lifts = await aerialways.around(client, track.lat, track.lon)
@@ -124,9 +159,9 @@ async def update(cache: MyLapsCache, strava: Strava, client: httpx.AsyncClient, 
         cache.days[activity["id"]] = (resort, rides, laps)
         log.info("Ski day %s at %s: %d GPS points, %d lift rides, %d laps",
                  len(cache.days), resort or "an unlisted area", len(track.time), len(rides), len(laps))
-        cache.save()
+        await cache.record(activity["id"])
         cache.latest = summarize(cache.days, liftblog_names)  # show progress as days are added
-        await asyncio.sleep(1)  # be gentle with Overpass and Strava
+        await asyncio.sleep(STRAVA_PACE_SECONDS)  # stay under Strava's rate limit (and be gentle with Overpass)
     cache.latest = summarize(cache.days, liftblog_names)
     cache.error = None
     return len(cache.days) - before
@@ -186,7 +221,7 @@ def main() -> None:
     async def run() -> dict:
         from .liftblog import fetch_lifts
 
-        cache = MyLapsCache(args.cache)
+        cache = MyLapsCache(args.cache, PostgresDays.from_env())
         async with httpx.AsyncClient(timeout=30, headers={"User-Agent": "davidcornes.com lift laps"}) as client:
             lift_data = await fetch_lifts(client)
             await update(cache, Strava(client, credentials), client, AerialwayCache(), liftblog_index(lift_data))

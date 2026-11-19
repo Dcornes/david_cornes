@@ -133,6 +133,8 @@
                   <div><dt>Lap</dt><dd>{{ best.day.lap_minutes | number: '1.1-1' }} min</dd></div>
                 }
                 <div><dt>Route</dt><dd>{{ best.osm.route!.length_m / 1000 | number: '1.1-1' }} km</dd></div>
+                <div><dt>Vert per run</dt><dd>{{ best.day.vertical | number: '1.0-0' }} ft</dd></div>
+                <div><dt>Vert / lap min</dt><dd>{{ best.day.lap_vert_per_minute | number: '1.0-0' }} ft</dd></div>
               </dl>
               <p class="route-runs">
                 <span class="muted">Ski down via</span>
@@ -148,7 +150,7 @@
                 <p class="muted route-others">
                   Next best:
                   @for (o of p.others; track o.day.name; let last = $last) {
-                    {{ o.day.name }} ({{ o.day.daily_vertical | number: '1.0-0' }} ft){{ last ? '.' : ',' }}
+                    {{ o.day.name }} ({{ o.day.daily_vertical | number: '1.0-0' }} ft, {{ o.day.vertical | number: '1.0-0' }} ft/run){{ last ? '.' : ',' }}
                   }
                 </p>
               }
