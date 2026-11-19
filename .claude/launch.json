@@ -4,14 +4,39 @@
     {
       "name": "backend",
       "runtimeExecutable": "backend/.venv/Scripts/fastapi.exe",
-      "runtimeArgs": ["dev", "backend/app/main.py", "--port", "8000"],
+      "runtimeArgs": [
+        "dev",
+        "backend/app/main.py",
+        "--port",
+        "8000"
+      ],
       "port": 8000
     },
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "start"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "start"
+      ],
       "port": 4200
+    },
+    {
+      "name": "backend-no-jobs",
+      "runtimeExecutable": "backend/.venv/Scripts/fastapi.exe",
+      "runtimeArgs": [
+        "dev",
+        "backend/app/main.py",
+        "--port",
+        "8000"
+      ],
+      "port": 8000,
+      "env": {
+        "LIFTS_ENABLED": "0",
+        "MARKET_DATA_ENABLED": "0",
+        "SNOW_ENABLED": "0"
+      }
     }
   ]
 }

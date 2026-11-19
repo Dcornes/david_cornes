@@ -1,0 +1,145 @@
+<div class="page">
+  <header class="topbar">
+    <h1>
+      <a routerLink="/">David Cornes</a>
+      <span class="muted">Snow heatmap</span>
+    </h1>
+    <app-site-nav />
+  </header>
+
+  <section aria-labelledby="heatmap-heading">
+    <div class="resort-toggle" role="group" aria-label="Ski area">
+      @for (r of resorts; track r) {
+        <button type="button" [class.active]="resort() === r" [attr.aria-pressed]="resort() === r" (click)="setResort(r)">
+          {{ r }}
+        </button>
+      }
+    </div>
+    <h2 id="heatmap-heading">Where I ski on powder days at {{ resort() }}</h2>
+    <p class="muted note">
+      Everywhere I've skied on days with at least {{ minSnow() }}″ of new snow in the 48 hours before, redder the more
+      often, from my Strava GPS.
+      @if (heat()?.snow_source; as src) {
+        New snow is the 48-hour total in
+        <a [href]="src.url" target="_blank" rel="noopener">{{ src.name }}</a>; for days before December 2020, the rise
+        in snow depth at the
+        @if (heat()?.station; as s) {
+          <a [href]="s.url" target="_blank" rel="noopener">{{ s.name }}</a> station.
+        }
+      } @else {
+        New snow is the rise in snow depth to 7 am at the
+        @if (heat()?.station; as s) {
+          <a [href]="s.url" target="_blank" rel="noopener">{{ s.name }}</a> station ({{ s.elevation_ft | number }} ft).
+        } @else {
+          nearest SNOTEL station.
+        }
+      }
+    </p>
+
+    <div class="controls">
+      <label class="threshold">
+        <span>New snow in the last 48 hours, at least</span>
+        <span class="field">
+          <input
+            type="range"
+            min="0"
+            max="24"
+            step="1"
+            [value]="minSnow()"
+            (input)="setMinSnow($any($event.target).value)"
+            aria-label="Minimum new snow in inches"
+          />
+          <strong class="inches">{{ minSnow() }}″</strong>
+        </span>
+      </label>
+      @if (heat(); as h) {
+        <dl class="facts" [class.stale]="loading()">
+          <div>
+            <dt>Powder days</dt>
+            <dd>{{ matchingDays() }} <span class="of">of {{ h.days_with_runs }}</span></dd>
+          </div>
+          <div>
+            <dt>Runs skied</dt>
+            <dd>{{ runsSkied() }}</dd>
+          </div>
+          <div>
+            <dt>Run descents</dt>
+            <dd>{{ h.descents | number }}</dd>
+          </div>
+        </dl>
+      }
+    </div>
+
+    @if (error(); as e) {
+      <p class="empty">{{ e }}</p>
+    }
+
+    @for (s of mapFor(); track s.resort) {
+      <figure class="map-figure">
+        <app-run-heatmap
+          [runs]="s.runs"
+          [counts]="heat()?.counts ?? {}"
+          [heat]="heat()?.heat ?? null"
+          [lifts]="s.lifts"
+          [label]="'Heatmap of where I skied at ' + s.resort + ' on powder days'"
+        />
+        <figcaption class="legend">
+          <span class="legend-title">Where I skied</span>
+          <span class="key">less <span class="ramp" [style.background]="ramp"></span> more often</span>
+          <span class="key"><span class="swatch none"></span>run</span>
+          <span class="key"><span class="swatch lift"></span>lift</span>
+        </figcaption>
+      </figure>
+    } @empty {
+      @if (!error()) {
+        <p class="empty">Loading the map…</p>
+      }
+    }
+
+    @if (table().length) {
+      <h3 class="table-heading">Most-skied runs at {{ minSnow() }}″+</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Run</th>
+              <th scope="col">Difficulty</th>
+              <th scope="col" class="num">Times skied</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of showAll() ? table() : table().slice(0, 15); track row.name) {
+              <tr>
+                <td>
+                  <span class="swatch" [style.background]="heatBin(row.times)?.color" aria-hidden="true"></span>
+                  {{ row.name }}
+                </td>
+                <td class="muted">{{ row.difficulty ? (difficulty[row.difficulty] ?? row.difficulty) : '—' }}</td>
+                <td class="num">{{ row.times }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (table().length > 15) {
+        <button type="button" class="more" (click)="showAll.set(!showAll())">
+          {{ showAll() ? 'Show fewer' : 'Show all ' + table().length + ' runs' }}
+        </button>
+      }
+    } @else if (heat() && !loading()) {
+      <p class="empty">No runs on days with {{ minSnow() }}″ or more. Try a lower threshold.</p>
+    }
+
+    <p class="muted footer">
+      The heatmap sums every pass through each 10 m square over those days, lift rides included. In the table, a run
+      counts once each time I skied down it (at least 10 seconds on it, matched to OpenStreetMap's runs); a run made of
+      several mapped pieces shows its busiest piece. Snow depth settles as snow falls, so a station reads lower than the
+      resort's reported totals.
+      @if (heat()?.days_unknown_snow) {
+        {{ heat()!.days_unknown_snow }} day(s) had no snow reading and are left out.
+      }
+      Only totals over the chosen days are published, never single tracks or dates. Map data © OpenStreetMap contributors; snow data USDA
+      NRCS SNOTEL.
+    </p>
+  </section>
+</div>

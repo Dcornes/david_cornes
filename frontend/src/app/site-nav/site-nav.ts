@@ -135,6 +135,7 @@ export class SiteNav {
     { path: '/markets', label: 'Live markets' },
     { path: '/snow', label: 'Snow' },
     { path: '/lifts', label: 'Ski lift vertical' },
+    { path: '/heatmap', label: 'Snow heatmap' },
   ];
   protected readonly open = signal(false);
   protected readonly onProject = signal(false);

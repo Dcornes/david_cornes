@@ -19,5 +19,10 @@ export const routes: Routes = [
     loadComponent: () => import('./lifts-page/lifts-page').then((m) => m.LiftsPage),
     title: 'Ski lift vertical · David Cornes',
   },
+  {
+    path: 'heatmap',
+    loadComponent: () => import('./heatmap-page/heatmap-page').then((m) => m.HeatmapPage),
+    title: 'Snow heatmap · David Cornes',
+  },
   { path: '**', redirectTo: '' },
 ];

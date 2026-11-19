@@ -14,20 +14,22 @@ import json
 import logging
 import statistics
 from collections import defaultdict
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
 
-from .day_store import PostgresDays
-from .aerialways import AerialwayCache, name_key, resort_near
+from .day_store import PostgresDays, SkiDay
+from .runs import PisteIndex, heat_cells, load_snapshot, runs_skied
+from .aerialways import RESORT_BOX, RESORT_CENTERS, AerialwayCache, name_key, resort_near
 from .laps import FEET_PER_METER, Lap, Ride, find_laps, find_rides, summarize_lift
 from .strava import Credentials, Strava, StravaError
 
 log = logging.getLogger(__name__)
 
 MAX_DAYS: int | None = None  # every ski day on Strava
+# Saved days at these resorts get their runs worked out (one more GPS download each, then kept).
+BACKFILL_RUNS_RESORTS = ("Big Sky", "Bridger Bowl")
 STRAVA_PACE_SECONDS = 9.5  # between GPS downloads: Strava allows 100 requests per 15 minutes
 REFRESH_SECONDS = 6 * 60 * 60
 RETRY_SECONDS = 30 * 60
@@ -41,7 +43,7 @@ class MyLapsCache:
     lift names and timings per Strava activity id (no GPS, no dates)."""
 
     def __init__(self, file: Path | None = None, store: PostgresDays | None = None) -> None:
-        self.days: dict[int, tuple[str | None, list[Ride], list[Lap]]] = {}  # activity id -> (resort, rides, laps)
+        self.days: dict[int, SkiDay] = {}  # activity id -> what was found that day
         self.latest: dict | None = None
         self.error: str | None = None
         self.file = file
@@ -50,10 +52,7 @@ class MyLapsCache:
         if file and file.exists():
             try:
                 saved = json.loads(file.read_text(encoding="utf-8"))
-                self.days = {
-                    int(key): (day["resort"], [Ride(**r) for r in day["rides"]], [Lap(**lap) for lap in day["laps"]])
-                    for key, day in saved.items()
-                }
+                self.days = {int(key): SkiDay.from_json(day) for key, day in saved.items()}
                 log.info("Loaded %d analysed ski days from %s", len(self.days), file)
             except (ValueError, KeyError, TypeError) as error:
                 log.warning("Ignoring an unreadable lap cache (%s); days will be analysed again", error)
@@ -61,10 +60,7 @@ class MyLapsCache:
     def save(self) -> None:
         if not self.file:
             return
-        data = {
-            str(key): {"resort": resort, "rides": [asdict(r) for r in rides], "laps": [asdict(lap) for lap in laps]}
-            for key, (resort, rides, laps) in self.days.items()
-        }
+        data = {str(key): day.to_json() for key, day in self.days.items()}
         self.file.parent.mkdir(parents=True, exist_ok=True)
         self.file.write_text(json.dumps(data), encoding="utf-8")
 
@@ -74,41 +70,45 @@ class MyLapsCache:
             return
         try:
             stored = await asyncio.to_thread(self.store.load)
-            missing = {key: day for key, day in self.days.items() if key not in stored}
+            # Upload days the database lacks, or knows less about (no date or runs yet).
+            missing = {key: day for key, day in self.days.items()
+                       if key not in stored or day.richness() > stored[key].richness()}
             await asyncio.to_thread(self.store.save, missing)
         except Exception as error:  # noqa: BLE001 - the database is optional; keep going without it
             log.warning("Couldn't reach the lap database (%s); trying again next check", error)
             return
         added = len(stored.keys() - self.days.keys())
-        self.days.update(stored)
+        for key, day in stored.items():
+            if key not in self.days or day.richness() >= self.days[key].richness():
+                self.days[key] = day
         self.synced = True
         log.info("Lap database: %d days loaded, %d new here, %d uploaded", len(stored), added, len(missing))
         if added:
             self.save()
 
-    async def record(self, activity_id: int) -> None:
-        """Save one newly analysed day to the file and the database."""
+    async def record(self, *activity_ids: int) -> None:
+        """Save newly analysed or updated days to the file and the database."""
         self.save()
-        if self.store and self.synced:
+        if self.store and self.synced and activity_ids:
             try:
-                await asyncio.to_thread(self.store.save, {activity_id: self.days[activity_id]})
+                await asyncio.to_thread(self.store.save, {key: self.days[key] for key in activity_ids})
             except Exception as error:  # noqa: BLE001
                 log.warning("Couldn't save a day to the lap database (%s); it's uploaded on the next start", error)
                 self.synced = False  # the next check syncs again, uploading what's missing
 
 
-def summarize(days: dict[int, tuple[str | None, list[Ride], list[Lap]]], liftblog_names: dict[str, dict[str, str]]) -> dict:
+def summarize(days: dict[int, SkiDay], liftblog_names: dict[str, dict[str, str]]) -> dict:
     """Per-lift medians across every day, plus your overall ski-down speed.
 
     liftblog_names: resort -> name_key -> Lift Blog's name, to line lifts up with the main table.
     """
     rides_by: dict[tuple, list[Ride]] = defaultdict(list)
     laps_by: dict[tuple, list[Lap]] = defaultdict(list)
-    for resort, rides, laps in days.values():
-        for ride in rides:
-            rides_by[(resort, ride.lift)].append(ride)
-        for lap in laps:
-            laps_by[(resort, lap.lift)].append(lap)
+    for day in days.values():
+        for ride in day.rides:
+            rides_by[(day.resort, ride.lift)].append(ride)
+        for lap in day.laps:
+            laps_by[(day.resort, lap.lift)].append(lap)
 
     lifts = []
     for (resort, lift), rides in rides_by.items():
@@ -119,11 +119,11 @@ def summarize(days: dict[int, tuple[str | None, list[Ride], list[Lap]]], liftblo
         lifts.append({"resort": resort or "Other", "lift": lift, "liftblog_name": matched, **entry})
     lifts.sort(key=lambda l: (-(l["lap_vert_per_minute"] or 0), -l["rides"]))
 
-    all_laps = [lap for _, _, laps in days.values() for lap in laps if lap.ski_s > 0]
+    all_laps = [lap for day in days.values() for lap in day.laps if lap.ski_s > 0]
     rate = statistics.median(lap.descent_m * FEET_PER_METER / (lap.ski_s / 60) for lap in all_laps) if all_laps else None
     return {
         "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "days": sum(1 for _, rides, _ in days.values() if rides),
+        "days": sum(1 for day in days.values() if day.rides),
         "rides": sum(len(r) for r in rides_by.values()),
         "laps": len(all_laps),
         "ski_rate_ft_min": rate,
@@ -131,36 +131,90 @@ def summarize(days: dict[int, tuple[str | None, list[Ride], list[Lap]]], liftblo
     }
 
 
+_indexes: dict[str, PisteIndex] = {}
+
+
+def piste_index(resort: str | None) -> PisteIndex | None:
+    """The resort's runs (from the shipped snapshot), ready for matching; None if not mapped."""
+    if resort and resort not in _indexes:
+        pistes = load_snapshot().get(resort)
+        if pistes:
+            _indexes[resort] = PisteIndex(pistes, RESORT_CENTERS[resort])
+    return _indexes.get(resort or "")
+
+
+def needs_runs(day: SkiDay) -> bool:
+    """A saved day whose runs or heatmap cells aren't worked out yet, at a resort where they're wanted."""
+    return (day.runs is None or day.heat is None) and bool(day.rides) and day.resort in BACKFILL_RUNS_RESORTS
+
+
+def resort_heat(track, resort: str | None) -> list[list[int]] | None:
+    """The day's heatmap cells around its resort (None away from a known resort)."""
+    if resort not in RESORT_CENTERS:
+        return None
+    return heat_cells(track, RESORT_CENTERS[resort], RESORT_BOX * 110_540)
+
+
 async def update(cache: MyLapsCache, strava: Strava, client: httpx.AsyncClient, aerialways: AerialwayCache,
                  liftblog_names: dict[str, dict[str, str]]) -> int:
-    """Analyse any new ski days. Returns how many were new."""
+    """Analyse any new ski days, and fill in dates and runs for saved ones that lack them.
+    Returns how many days were new."""
     await cache.sync_store()
     before = len(cache.days)
     if cache.days and cache.latest is None:
         cache.latest = summarize(cache.days, liftblog_names)  # saved days, while new ones are checked
     activities = await strava.ski_activities(MAX_DAYS)
+
+    # Dates come with the activity list, so saved days get theirs without more requests.
+    dated = []
     for activity in activities:
-        if activity["id"] in cache.days:
-            continue
-        track = await strava.track(activity["id"])
+        day = cache.days.get(activity["id"])
+        if day and day.date is None and activity.get("start_date_local"):
+            day.date = activity["start_date_local"][:10]
+            dated.append(activity["id"])
+    if dated:
+        await cache.record(*dated)
+        log.info("Added dates to %d saved ski days", len(dated))
+
+    # New days first, then saved days that still need their runs (one GPS download each).
+    todo = [a for a in activities if a["id"] not in cache.days]
+    todo += sorted((a for a in activities if a["id"] in cache.days and needs_runs(cache.days[a["id"]])),
+                   key=lambda a: list(BACKFILL_RUNS_RESORTS).index(cache.days[a["id"]].resort))
+    for activity in todo:
+        key, saved = activity["id"], cache.days.get(activity["id"])
+        track = await strava.track(key)
         if track is None:
-            cache.days[activity["id"]] = (None, [], [])
-            await cache.record(activity["id"])
+            if saved:
+                saved.runs, saved.heat = {}, []
+            else:
+                cache.days[key] = SkiDay(None, [], [], activity.get("start_date_local", "")[:10] or None, {}, [])
+            await cache.record(key)
             await asyncio.sleep(STRAVA_PACE_SECONDS)
             continue
-        try:
-            lifts = await aerialways.around(client, track.lat, track.lon)
-        except RuntimeError as error:
-            log.warning("Skipping a ski day for now: %s", error)  # not cached, so it's retried next time
-            continue
-        rides = find_rides(track, lifts)
-        resort = resort_near(statistics.median(track.lat), statistics.median(track.lon))
-        laps = find_laps(track, rides)
-        cache.days[activity["id"]] = (resort, rides, laps)
-        log.info("Ski day %s at %s: %d GPS points, %d lift rides, %d laps",
-                 len(cache.days), resort or "an unlisted area", len(track.time), len(rides), len(laps))
-        await cache.record(activity["id"])
-        cache.latest = summarize(cache.days, liftblog_names)  # show progress as days are added
+        if saved:  # already analysed: just the runs
+            index = piste_index(saved.resort)
+            saved.runs = runs_skied(track, saved.rides, index) if index else {}
+            saved.heat = resort_heat(track, saved.resort) or []
+            log.info("Runs for a saved ski day at %s: %d runs, %d heat cells (%d left to do)", saved.resort,
+                     len(saved.runs), len(saved.heat),
+                     sum(needs_runs(d) for d in cache.days.values()))
+        else:
+            try:
+                lifts = await aerialways.around(client, track.lat, track.lon)
+            except RuntimeError as error:
+                log.warning("Skipping a ski day for now: %s", error)  # not cached, so it's retried next time
+                continue
+            rides = find_rides(track, lifts)
+            resort = resort_near(statistics.median(track.lat), statistics.median(track.lon))
+            laps = find_laps(track, rides)
+            index = piste_index(resort)
+            runs = runs_skied(track, rides, index) if index else None
+            cache.days[key] = SkiDay(resort, rides, laps, activity.get("start_date_local", "")[:10] or None, runs,
+                                     resort_heat(track, resort))
+            log.info("Ski day %s at %s: %d GPS points, %d lift rides, %d laps, %d runs", len(cache.days),
+                     resort or "an unlisted area", len(track.time), len(rides), len(laps), len(runs or {}))
+            cache.latest = summarize(cache.days, liftblog_names)  # show progress as days are added
+        await cache.record(key)
         await asyncio.sleep(STRAVA_PACE_SECONDS)  # stay under Strava's rate limit (and be gentle with Overpass)
     cache.latest = summarize(cache.days, liftblog_names)
     cache.error = None
