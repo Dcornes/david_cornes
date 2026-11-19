@@ -58,6 +58,11 @@ CREATE TABLE IF NOT EXISTS snow_days (
     fetched_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (resort, day, window_hours)
 );
+CREATE TABLE IF NOT EXISTS cache_entries (
+    key text PRIMARY KEY,
+    data jsonb NOT NULL,
+    saved_at timestamptz NOT NULL DEFAULT now()
+);
 """
 
 SNOW_UPSERT = """
@@ -119,6 +124,21 @@ class PostgresDays:
         ]
         with self._connect() as connection, connection.cursor() as cursor:
             cursor.executemany(UPSERT, rows)
+
+    def load_entry(self, key: str) -> tuple[dict, float] | None:
+        """A cached response and when it was saved (Unix time), or None."""
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT data, extract(epoch FROM saved_at) FROM cache_entries WHERE key = %s", (key,))
+            row = cursor.fetchone()
+            return (row[0], float(row[1])) if row else None
+
+    def save_entry(self, key: str, data: dict) -> None:
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO cache_entries (key, data) VALUES (%s, %s) "
+                "ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, saved_at = now()",
+                (key, json.dumps(data, separators=(",", ":"))),
+            )
 
     def load_snow(self, window_hours: int) -> dict[tuple[str, str], float | None]:
         """New snow per (resort, date) measured over window_hours (None: no reading that day)."""

@@ -11,9 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.quotes import configured_symbols, router as quotes_router, run_market_data
-from app.lifts import router as lifts_router, run_lifts, run_my_laps, run_routes
-from app.snow import router as snow_router, run_snow
+from app.quotes import configured_symbols, router as quotes_router, run_market_data_on_demand
+from app.lifts import router as lifts_router, run_my_laps, run_routes
+from app.snow import report as snow_report, router as snow_router
 
 # Local secrets (e.g. Strava) from backend/.env; on Render they come from the environment.
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -24,19 +24,18 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Stream exchange quotes in the background for the whole life of the server.
-    # Set MARKET_DATA_ENABLED=0 to turn it off (e.g. when working only on the résumé).
-    # Bridger Bowl snow totals are fetched hourly (SNOW_ENABLED=0 turns that off), and
-    # lift data daily (LIFTS_ENABLED=0).
+    # Little runs in the background, to keep CPU and requests to other sites down:
+    # - exchange quotes stream only while someone has the markets page open (MARKET_DATA_ENABLED=0: never);
+    # - snow totals and Lift Blog data are fetched when asked for and stale, and kept in the database
+    #   (SNOW_ENABLED=0 stops snow fetching);
+    # - Strava is checked daily and the lift maps monthly (LIFTS_ENABLED=0 turns both off).
     tasks = []
     if os.environ.get("MARKET_DATA_ENABLED", "1") != "0":
-        tasks.append(asyncio.create_task(run_market_data(configured_symbols())))
-    if os.environ.get("SNOW_ENABLED", "1") != "0":
-        tasks.append(asyncio.create_task(run_snow()))
+        tasks.append(asyncio.create_task(run_market_data_on_demand(configured_symbols())))
+    snow_report.enabled = os.environ.get("SNOW_ENABLED", "1") != "0"
     if os.environ.get("LIFTS_ENABLED", "1") != "0":
-        tasks.append(asyncio.create_task(run_lifts()))
-        tasks.append(asyncio.create_task(run_my_laps()))  # does nothing without STRAVA_ variables
-        tasks.append(asyncio.create_task(run_routes()))  # lift and run maps for the route map, weekly
+        tasks.append(asyncio.create_task(run_my_laps()))  # Strava does nothing without STRAVA_ variables
+        tasks.append(asyncio.create_task(run_routes()))
     yield
     for task in tasks:
         task.cancel()

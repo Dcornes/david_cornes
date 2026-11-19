@@ -37,7 +37,7 @@
   </ng-template>
 
   <ng-template #single let-r>
-    <div class="today">
+    @if (part() !== 'webcams') {
       <div class="today-stats">
         <dl class="summary">
           @for (s of r.summary; track s.label + s.detail) {
@@ -63,6 +63,45 @@
           <p class="message">{{ r.message }}</p>
         }
       </div>
+      @if (r.tables.length) {
+        <details class="more" [open]="isExpanded(r)">
+          <summary (click)="$event.preventDefault(); setExpanded(r, !isExpanded(r))">More snow stats</summary>
+          @if (isExpanded(r)) {
+            @for (t of r.tables; track t.title) {
+              <h3>{{ t.title }}</h3>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      @for (c of t.columns; track $index) {
+                        <th scope="col">{{ c }}</th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of t.rows; track $index) {
+                      <tr>
+                        @for (cell of row; track $index; let first = $first) {
+                          @if (first) {
+                            <th scope="row">{{ cell }}</th>
+                          } @else {
+                            <td>{{ cell }}</td>
+                          }
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              @if (t.note) {
+                <p class="note muted">{{ t.note }}</p>
+              }
+            }
+          }
+        </details>
+      }
+    }
+    @if (part() !== 'stats') {
       <div class="today-cam">
         @if (featured(r); as cam) {
           <ng-container *ngTemplateOutlet="webcam; context: { $implicit: cam, big: true }" />
@@ -70,57 +109,25 @@
           <p class="no-cams muted">
             Webcams can't be shown here. <a [href]="r.webcams_page" target="_blank" rel="noopener">See them on {{ r.name }}'s site ↗</a>
           </p>
+        } @else {
+          <p class="no-cams muted">No webcams for {{ r.name }}.</p>
         }
       </div>
-    </div>
-    <details class="more" [open]="isExpanded(r)">
-      <summary (click)="$event.preventDefault(); setExpanded(r, !isExpanded(r))">
-        More snow stats
-        @if (otherWebcams(r).length) {
-          and {{ otherWebcams(r).length }} more webcams
-        }
-      </summary>
-      @if (isExpanded(r)) {
-        @for (t of r.tables; track t.title) {
-          <h3>{{ t.title }}</h3>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  @for (c of t.columns; track $index) {
-                    <th scope="col">{{ c }}</th>
-                  }
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of t.rows; track $index) {
-                  <tr>
-                    @for (cell of row; track $index; let first = $first) {
-                      @if (first) {
-                        <th scope="row">{{ cell }}</th>
-                      } @else {
-                        <td>{{ cell }}</td>
-                      }
-                    }
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-          @if (t.note) {
-            <p class="note muted">{{ t.note }}</p>
+      @if (otherWebcams(r).length) {
+        <details class="more" [open]="isExpanded(r)">
+          <summary (click)="$event.preventDefault(); setExpanded(r, !isExpanded(r))">
+            {{ otherWebcams(r).length }} more webcams
+          </summary>
+          @if (isExpanded(r)) {
+            <div class="webcams">
+              @for (cam of otherWebcams(r); track cam.src) {
+                <ng-container *ngTemplateOutlet="webcam; context: { $implicit: cam, big: false }" />
+              }
+            </div>
           }
-        }
-        @if (otherWebcams(r).length) {
-          <h3>Webcams</h3>
-          <div class="webcams">
-            @for (cam of otherWebcams(r); track cam.src) {
-              <ng-container *ngTemplateOutlet="webcam; context: { $implicit: cam, big: false }" />
-            }
-          </div>
-        }
+        </details>
       }
-    </details>
+    }
   </ng-template>
 
   @if (data(); as d) {

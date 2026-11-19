@@ -73,6 +73,8 @@ export class SnowPage implements OnInit {
   /** Inside the Skiing page: no header, and optionally just one resort (by id), shown open. */
   readonly embedded = input(false);
   readonly resort = input<string | null>(null);
+  /** For one resort: everything, just the snow stats, or just the webcams (shown under the map). */
+  readonly part = input<'all' | 'stats' | 'webcams'>('all');
   private readonly sanitizer = inject(DomSanitizer);
   protected readonly data = signal<SnowData | null>(null);
   protected readonly shown = computed(() => {

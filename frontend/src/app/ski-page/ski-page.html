@@ -8,42 +8,61 @@
   </header>
 
   <nav class="resorts" aria-label="Ski area">
-    <a routerLink="/ski" [class.active]="resort() === null" [attr.aria-current]="resort() === null ? 'page' : null">All resorts</a>
+    <a [routerLink]="['/ski', 'all', feature()]" [class.active]="resort() === null" [attr.aria-current]="resort() === null ? 'page' : null">All resorts</a>
     @for (r of resorts; track r.slug) {
-      <a [routerLink]="['/ski', r.slug]" [class.active]="resort()?.slug === r.slug" [attr.aria-current]="resort()?.slug === r.slug ? 'page' : null">
+      <a [routerLink]="['/ski', r.slug, feature()]" [class.active]="resort()?.slug === r.slug" [attr.aria-current]="resort()?.slug === r.slug ? 'page' : null">
         {{ r.name }}
       </a>
     }
   </nav>
 
   @for (r of current(); track r.slug) {
-    <h2 class="resort-name">{{ r.name }}</h2>
+    <div class="resort-head">
+      @if (r.photo; as photo) {
+        <figure class="resort-photo">
+          <img [src]="photo.src" [alt]="r.name" width="240" height="160" decoding="async" />
+          <figcaption>
+            <a [href]="photo.page" target="_blank" rel="noopener" [title]="'Photo by ' + photo.author + ', ' + photo.license">
+              Photo: {{ photo.author }}, {{ photo.license }}
+            </a>
+          </figcaption>
+        </figure>
+      }
+      <h2 class="resort-name">{{ r.name }}</h2>
+    </div>
 
-    <section class="block" aria-labelledby="today-heading">
-      <h2 id="today-heading" class="block-title">{{ resort() ? 'Today' : 'Snow report' }}</h2>
-      <app-snow-page [embedded]="true" [resort]="resort()?.slug ?? null" />
-    </section>
+    <nav class="features" [attr.aria-label]="r.name + ' sections'">
+      @for (f of features(); track f.key) {
+        <a
+          [routerLink]="['/ski', slug(), f.key]"
+          [class.active]="feature() === f.key"
+          [attr.aria-current]="feature() === f.key ? 'page' : null"
+          >{{ f.label }}</a
+        >
+      }
+    </nav>
 
-    @if (r.map) {
-      <section class="block">
-        <app-heatmap-page
-          [embedded]="true"
-          [only]="r.name"
-          [heatAvailable]="r.heat"
-          [bearing]="r.bearing"
-          [bestLap]="bestLap()"
-        />
-      </section>
-    }
-
-    @if (r.lifts) {
-      <section class="block">
-        <app-lifts-page [embedded]="true" [only]="resort()?.name ?? null" (bestLap)="setBestLap($event)" />
-      </section>
-    } @else {
-      <section class="block">
-        <p class="muted">No lift data or run map for {{ r.name }} yet; snow and webcams only.</p>
-      </section>
-    }
+    <div class="feature">
+      @switch (feature()) {
+        @case ('snow') {
+          <app-snow-page [embedded]="true" [resort]="resort()?.slug ?? null" [part]="resort() ? 'stats' : 'all'" />
+        }
+        @case ('map') {
+          <app-heatmap-page [embedded]="true" [only]="r.name" [heatAvailable]="r.heat" [bearing]="r.bearing" [bestLap]="bestLap()" />
+        }
+        @case ('webcams') {
+          <app-snow-page [embedded]="true" [resort]="resort()!.slug" part="webcams" />
+        }
+        @case ('lifts') {
+          <app-lifts-page [embedded]="true" [only]="resort()?.name ?? null" [bearing]="r.bearing" (bestLap)="setBestLap($event)" />
+        }
+      }
+      @if (feature() === 'map' && r.lifts) {
+        <!-- Works out the best lap for the map (it's drawn there, not shown here). -->
+        <div hidden>
+          <app-lifts-page [embedded]="true" [only]="r.name" [showMap]="false" (bestLap)="setBestLap($event)" />
+        </div>
+      }
+    </div>
   }
 </div>

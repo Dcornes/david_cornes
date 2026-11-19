@@ -78,20 +78,82 @@ h1 .muted {
   color: var(--bg);
 }
 
-.resort-name {
+.resort-head {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
   margin-top: 2rem;
+}
+
+.resort-name {
   font-size: 2rem;
   font-weight: 600;
 }
 
-.block {
-  margin-top: 2.5rem;
+.resort-photo {
+  flex: none;
+  margin: 0;
+  width: 9rem;
 }
 
-.block-title {
-  margin-bottom: 1rem;
-  font-size: 1.5rem;
+.resort-photo img {
+  display: block;
+  width: 9rem;
+  height: 6rem;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.resort-photo figcaption {
+  margin-top: 0.2rem;
+  font-size: 0.625rem;
+  line-height: 1.3;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resort-photo figcaption a:hover {
+  text-decoration: underline;
+}
+
+/* --- Feature tabs under the resort name --- */
+.features {
+  display: flex;
+  gap: 0.25rem 1.75rem;
+  margin-top: 1.25rem;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; /* scrolls sideways on narrow screens, without a bar */
+}
+
+.features a {
+  flex: none;
+  padding: 0.6rem 0 0.7rem;
+  margin-bottom: -1px;
+  border-bottom: 3px solid transparent;
+  font-size: 1rem;
   font-weight: 600;
+  color: var(--muted);
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.features a:hover {
+  color: var(--text);
+}
+
+.features a.active {
+  color: var(--text);
+  border-bottom-color: #fc5200;
+}
+
+.feature {
+  margin-top: 1.75rem;
 }
 
 @media (max-width: 860px) {
@@ -108,5 +170,18 @@ h1 .muted {
 
   .resorts a {
     flex: none;
+  }
+
+  .resort-photo,
+  .resort-photo img {
+    width: 6.5rem;
+  }
+
+  .resort-photo img {
+    height: 4.5rem;
+  }
+
+  .resort-name {
+    font-size: 1.5rem;
   }
 }

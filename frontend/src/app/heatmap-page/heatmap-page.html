@@ -3,7 +3,7 @@
     <header class="topbar">
       <h1>
         <a routerLink="/">David Cornes</a>
-        <span class="muted">Snow heatmap</span>
+        <span class="muted">Snow heat map</span>
       </h1>
       <app-site-nav />
     </header>
@@ -42,7 +42,7 @@
     </p>
     } @else {
       <p class="muted note">
-        Lifts and runs from OpenStreetMap on 3D terrain. I haven't skied here on Strava yet, so there's no heatmap.
+        Lifts and runs from OpenStreetMap on 3D terrain. I haven't skied here on Strava yet, so there's no heat map.
       </p>
     }
 
@@ -115,7 +115,7 @@
           [bestLap]="bestLap()"
           [showHeat]="showHeat() && heatAvailable()"
           [showLap]="showLap()"
-          [label]="(heatAvailable() ? 'Heatmap of where I skied at ' : 'Map of ') + s.resort"
+          [label]="(heatAvailable() ? 'Heat map of where I skied at ' : 'Map of ') + s.resort"
         />
         <figcaption class="legend">
           @if (heatAvailable()) {
@@ -171,7 +171,7 @@
 
     @if (heatAvailable()) {
     <p class="muted footer">
-      The heatmap sums every pass through each 10 m square over those days, lift rides included. In the table, a run
+      The heat map sums every pass through each 10 m square over those days, lift rides included. In the table, a run
       counts once each time I skied down it (at least 10 seconds on it, matched to OpenStreetMap's runs); a run made of
       several mapped pieces shows its busiest piece. Snow depth settles as snow falls, so a station reads lower than the
       resort's reported totals.

@@ -257,6 +257,8 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
   readonly bestLap = input<BestLap | null>(null);
   readonly showHeat = input(true);
   readonly showLap = input(true);
+  /** Frame the best lap (with the mountain around it) rather than the runs or heat. */
+  readonly frameLap = input(false);
   protected readonly basemap = signal<Basemap>('map');
   protected readonly view = signal<View>('3d');
 
@@ -292,6 +294,10 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
           ]
         : [];
     (map.getSource('lap') as MapLibre.GeoJSONSource).setData({ type: 'FeatureCollection', features });
+    if (lap && this.frameLap()) {
+      this.frame([...lap.line, ...lap.route], 1); // a zoom level out, for context
+      this.framed = true;
+    }
   }
 
   protected setBasemap(basemap: Basemap): void {
@@ -546,8 +552,12 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
         geometry: { type: 'LineString', coordinates: flip(lift.line) },
       })),
     });
-    if (!this.framed && runs.length && !this.heat()?.cells.length) {
-      this.frame(runs.flatMap((r) => r.points));
+    if (!this.framed && !this.heat()?.cells.length) {
+      const points = runs.length ? runs.flatMap((r) => r.points) : lifts.flatMap((l) => l.line);
+      if (points.length) {
+        this.frame(points);
+        this.framed = !runs.length; // with runs, the heat (when it comes) is framed instead
+      }
     }
   }
 
@@ -565,7 +575,7 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
   }
 
   /** Fit these points in a tilted view looking up the mountain. */
-  private frame(points: LatLon[]): void {
+  private frame(points: LatLon[], zoomOut = 0): void {
     const map = this.map;
     const ml = this.maplibre;
     if (!map || !ml || !points.length) {
@@ -576,7 +586,7 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
     const camera = map.cameraForBounds(bounds, { padding: 40, bearing: this.view() === '2d' ? 0 : this.bearing() });
     if (camera) {
       const flat = this.view() === '2d';
-      map.jumpTo({ ...camera, zoom: (camera.zoom ?? 13) + (flat ? 0.1 : -0.25), pitch: flat ? 0 : PITCH_3D, bearing: flat ? 0 : this.bearing() });
+      map.jumpTo({ ...camera, zoom: (camera.zoom ?? 13) + (flat ? 0.1 : -0.25) - zoomOut, pitch: flat ? 0 : PITCH_3D, bearing: flat ? 0 : this.bearing() });
     }
   }
 }

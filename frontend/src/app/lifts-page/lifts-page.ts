@@ -3,7 +3,7 @@ import { Component, computed, DestroyRef, effect, inject, input, OnInit, output,
 import { RouterLink } from '@angular/router';
 import { SiteNav } from '../site-nav/site-nav';
 import { LatLon, RouteMap } from './route-map';
-import type { BestLap } from '../heatmap-page/run-heatmap';
+import { BestLap, RunHeatmap } from '../heatmap-page/run-heatmap';
 
 export interface Lift {
   resort: string;
@@ -132,7 +132,7 @@ export function liftDay(
 }
 
 @Component({
-  imports: [DecimalPipe, RouteMap, RouterLink, SiteNav],
+  imports: [DecimalPipe, RouteMap, RouterLink, RunHeatmap, SiteNav],
   selector: 'app-lifts-page',
   styleUrl: './lifts-page.css',
   templateUrl: './lifts-page.html',
@@ -141,6 +141,15 @@ export class LiftsPage implements OnInit {
   /** Inside the Skiing page: no header or resort chips; one resort (or all) chosen by the page. */
   readonly embedded = input(false);
   readonly only = input<string | null>(null);
+  /** Which way the 3D map looks (the Skiing page passes the resort's). */
+  readonly bearing = input(-100);
+  /** False when only the best-lap pick is wanted (hidden, behind the heat map tab). */
+  readonly showMap = input(true);
+  /** The best lap drawn on the map: the lift and its way back down. */
+  protected readonly lap = computed<BestLap | null>(() => {
+    const best = this.plan()?.best;
+    return best ? { lift: best.osm.name, line: best.osm.line, route: best.osm.route!.points } : null;
+  });
   /** The best lift to lap at the chosen resort, for the page's map. */
   readonly bestLap = output<BestLap | null>();
   protected readonly data = signal<LiftData | null>(null);

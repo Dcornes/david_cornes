@@ -172,6 +172,23 @@
               />
             }
           </div>
+          @if (embedded() && showMap()) {
+            <figure class="lifts-map">
+              <app-run-heatmap
+                [runs]="[]"
+                [lifts]="p.map.lifts"
+                [bestLap]="lap()"
+                [showHeat]="false"
+                [frameLap]="true"
+                [bearing]="bearing()"
+                [label]="'Map of ' + p.resort + ' lifts, with the ' + best.day.name + ' and its ski route in blue'"
+              />
+              <figcaption class="muted">
+                <span class="lap-key" aria-hidden="true"></span> Best lap: {{ best.day.name }} and the way back down ·
+                <span class="lift-key" aria-hidden="true"></span> other lifts
+              </figcaption>
+            </figure>
+          }
         } @else {
           <p class="muted note">No mapped route for {{ p.resort }}'s lifts yet.</p>
         }

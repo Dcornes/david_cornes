@@ -19,9 +19,14 @@ export const routes: Routes = [
     loadComponent: () => import('./ski-page/ski-page').then((m) => m.SkiPage),
     title: 'Skiing · David Cornes',
   },
+  {
+    path: 'ski/:resort/:feature',
+    loadComponent: () => import('./ski-page/ski-page').then((m) => m.SkiPage),
+    title: 'Skiing · David Cornes',
+  },
   // The skiing pages were merged into /ski; old links still work.
   { path: 'snow', redirectTo: 'ski' },
   { path: 'lifts', redirectTo: 'ski' },
-  { path: 'heatmap', redirectTo: 'ski/big-sky' },
+  { path: 'heatmap', redirectTo: 'ski/big-sky/map' },
   { path: '**', redirectTo: '' },
 ];

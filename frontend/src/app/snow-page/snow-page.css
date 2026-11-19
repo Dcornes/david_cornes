@@ -340,40 +340,34 @@ tbody th {
 }
 
 /* --- One resort, inside the Skiing page --- */
-.today {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-  gap: 1.5rem;
-  align-items: start;
-}
-
-.today .summary {
+.today-stats .summary {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem 2rem;
+  gap: 1rem 2.5rem;
 }
 
-.today .updated {
+.today-stats .updated {
+  width: auto;
   margin-top: 1rem;
   font-size: 0.8125rem;
+  text-align: left;
 }
 
-.today .updated a {
+.today-stats .updated a {
   text-decoration: underline;
 }
 
-.today .message {
+.today-stats .message {
+  max-width: 48rem;
   margin-top: 0.75rem;
   font-size: 0.875rem;
   line-height: 1.5;
 }
 
-.today-cam figure {
-  margin: 0;
+.today-cam {
+  max-width: 56rem;
 }
 
-@media (max-width: 860px) {
-  .today {
-    grid-template-columns: 1fr;
-  }
+.today-cam figure {
+  margin: 0;
 }

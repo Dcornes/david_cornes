@@ -389,3 +389,28 @@ td.mine {
   grid-template-columns: 1fr;
   max-width: 44rem;
 }
+
+.lifts-map {
+  margin: 1.25rem 0 0;
+}
+
+.lifts-map figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.lap-key,
+.lift-key {
+  display: inline-block;
+  width: 1.4rem;
+  height: 0;
+  vertical-align: middle;
+}
+
+.lap-key {
+  border-top: 3px dashed #1f5fa8;
+}
+
+.lift-key {
+  border-top: 2px dotted #2f2f2f;
+}

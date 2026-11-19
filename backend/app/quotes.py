@@ -9,6 +9,7 @@ carries every exchange feed's health whenever one changes. After two hours a
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import math
@@ -26,6 +27,7 @@ DEFAULT_SYMBOLS = "BTC-USDT,ETH-USDT"
 UPDATES_PER_SECOND = 1  # per pair; faster changes are combined, always ending on the newest price
 HEARTBEAT_SECONDS = 15  # keeps idle connections open through proxies
 MAX_STREAM_SECONDS = 2 * 60 * 60  # then the stream ends, so forgotten tabs and bots don't stream forever
+IDLE_STOP_SECONDS = 2 * 60  # exchange feeds stop this long after the last viewer leaves
 QUEUE_SIZE = 200  # per browser; a browser that falls this far behind is sent full snapshots instead
 
 
@@ -95,6 +97,7 @@ class QuoteBroadcaster:
         self._scheduled: dict[str, asyncio.TimerHandle] = {}  # symbol -> pending delayed send
         self._subscribers: set[asyncio.Queue[str]] = set()
         self.feeds: list[dict] = []  # latest health of each exchange feed
+        self.watched = asyncio.Event()  # set while anyone is subscribed
 
     def publish_status(self, feeds: list[dict]) -> None:
         """Send every exchange feed's health. Rare (only on changes), so not rate limited."""
@@ -149,10 +152,23 @@ class QuoteBroadcaster:
     def subscribe(self) -> asyncio.Queue[str]:
         queue: asyncio.Queue[str] = asyncio.Queue(QUEUE_SIZE)
         self._subscribers.add(queue)
+        self.watched.set()
         return queue
 
     def unsubscribe(self, queue: asyncio.Queue[str]) -> None:
         self._subscribers.discard(queue)
+        if not self._subscribers:
+            self.watched.clear()
+
+    def reset(self) -> None:
+        """Forget every price (the feeds stopped), so the next viewer doesn't see old ones as current."""
+        for handle in self._scheduled.values():
+            handle.cancel()
+        self._scheduled.clear()
+        self.latest.clear()
+        self.sent.clear()
+        self._last_sent.clear()
+        self.feeds = []
 
     @property
     def subscriber_count(self) -> int:
@@ -202,6 +218,32 @@ async def run_market_data(symbols: list[str], source: QuoteBroadcaster = broadca
     handler = MarketDataHandler(symbols, on_update=publish, reconnect=True, on_status=publish_status)
     publish_status(handler.statuses())  # every feed starts as "connecting"
     await handler.run()
+
+
+async def run_market_data_on_demand(
+    symbols: list[str], source: QuoteBroadcaster = broadcaster, idle_stop: float = IDLE_STOP_SECONDS, check: float = 5
+) -> None:
+    """Stream from the exchanges only while someone is watching the markets page: start when the
+    first viewer connects, stop idle_stop seconds after the last one leaves. Until cancelled."""
+    while True:
+        await source.watched.wait()
+        feeds = asyncio.create_task(run_market_data(symbols, source))
+        idle_since: float | None = None
+        try:
+            while not feeds.done():
+                await asyncio.sleep(check)
+                if source.subscriber_count:
+                    idle_since = None
+                elif idle_since is None:
+                    idle_since = time.monotonic()
+                elif time.monotonic() - idle_since >= idle_stop:
+                    break
+        finally:
+            feeds.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await feeds
+        log.info("Nobody is watching the markets page; exchange feeds stopped")
+        source.reset()
 
 
 def configured_symbols() -> list[str]:

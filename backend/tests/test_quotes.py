@@ -253,3 +253,32 @@ def test_feed_status_endpoint(monkeypatch) -> None:
     source.publish_status(FEEDS)
     monkeypatch.setattr(quotes, "broadcaster", source)
     assert TestClient(app).get("/api/quotes/status").json() == FEEDS
+
+
+def test_exchange_feeds_run_only_while_someone_watches(monkeypatch) -> None:
+    started, stopped = [], []
+
+    async def fake_feeds(symbols, source):
+        started.append(1)
+        source.publish({"symbol": "BTC-USD", "exchanges": {}})
+        try:
+            await asyncio.sleep(3600)
+        finally:
+            stopped.append(1)
+
+    monkeypatch.setattr(quotes, "run_market_data", fake_feeds)
+
+    async def scenario():
+        source = quotes.QuoteBroadcaster()
+        task = asyncio.create_task(quotes.run_market_data_on_demand(["BTC-USD"], source, idle_stop=0.05, check=0.01))
+        await asyncio.sleep(0.05)
+        assert started == []  # nobody watching: no feeds
+        queue = source.subscribe()
+        await asyncio.sleep(0.05)
+        assert started == [1] and stopped == []
+        source.unsubscribe(queue)
+        await asyncio.sleep(0.2)
+        assert stopped == [1] and source.latest == {}  # stopped, and old prices forgotten
+        task.cancel()
+
+    asyncio.run(scenario())
