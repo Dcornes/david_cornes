@@ -37,6 +37,13 @@ def test_bc_station_depths_are_read_in_inches_and_pacific_time(monkeypatch) -> N
     assert depths == {datetime(2025, 3, 14, 6): 100.0}  # 14:00 UTC is 6 am PST; 254 cm is 100 in
 
 
+def test_new_snow_over_24_hours_uses_just_that_window() -> None:
+    values = [40.0] * 25 + [45.0] * 24  # 5" fell over 48 hours ago... then nothing in the last 24
+    readings = depths(datetime(2024, 12, 31, 5), values)
+    assert heatmap.new_snow(readings, date(2025, 1, 2)) == 5.0
+    assert heatmap.new_snow(readings, date(2025, 1, 2), 24) == 0.0
+
+
 def test_new_snow_is_unknown_without_enough_readings() -> None:
     assert heatmap.new_snow(depths(datetime(2025, 1, 1, 1), [40.0] * 5), date(2025, 1, 2)) is None
 

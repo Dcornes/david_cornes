@@ -1,12 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import { HeatmapPage } from '../heatmap-page/heatmap-page';
 import type { BestLap } from '../heatmap-page/run-heatmap';
 import { LiftsPage } from '../lifts-page/lifts-page';
 import { SiteNav } from '../site-nav/site-nav';
 import { SnowPage } from '../snow-page/snow-page';
+import { latestSnow, RecentSnow, ResortMap } from './resort-map';
 
 /** A ski area on the Skiing page, and what there is for it. */
 export interface SkiResort {
@@ -16,27 +17,31 @@ export interface SkiResort {
   heat: boolean; // my powder-day heatmap
   lifts: boolean; // lift vertical data
   bearing: number; // which way the 3D camera looks: up the mountain
+  center: [number, number]; // lat, lon of the base area
   /** A freely licensed photo of the resort (Wikimedia Commons), credited as its licence asks. */
   photo?: { src: string; page: string; author: string; license: string };
 }
 
 export const SKI_RESORTS: SkiResort[] = [
-  { slug: 'big-sky', name: 'Big Sky', map: true, heat: true, lifts: true, bearing: -100,
+  { slug: 'big-sky', name: 'Big Sky', map: true, heat: true, lifts: true, center: [45.2836, -111.4014], bearing: -100,
     photo: { src: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b8/Lone_Peak%2C_Big_Sky%2C_Montana.jpg/250px-Lone_Peak%2C_Big_Sky%2C_Montana.jpg', page: 'https://commons.wikimedia.org/wiki/File:Lone_Peak,_Big_Sky,_Montana.jpg', author: 'Goldman60', license: 'CC BY 3.0' } },
-  { slug: 'bridger-bowl', name: 'Bridger Bowl', map: true, heat: true, lifts: true, bearing: -100,
+  { slug: 'bridger-bowl', name: 'Bridger Bowl', map: true, heat: true, lifts: true, center: [45.8174, -110.8966], bearing: -100,
     photo: { src: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Bridger_Bowl.jpg/250px-Bridger_Bowl.jpg', page: 'https://commons.wikimedia.org/wiki/File:Bridger_Bowl.jpg', author: 'Richard Barley', license: 'CC BY 2.0' } },
-  { slug: 'jackson-hole', name: 'Jackson Hole', map: true, heat: true, lifts: true, bearing: -100,
+  { slug: 'jackson-hole', name: 'Jackson Hole', map: true, heat: true, lifts: true, center: [43.5875, -110.8279], bearing: -100,
     photo: { src: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Jackson_hole_new_tram.jpg/250px-Jackson_hole_new_tram.jpg', page: 'https://commons.wikimedia.org/wiki/File:Jackson_hole_new_tram.jpg', author: 'Enricokamasa', license: 'Public domain' } },
-  { slug: 'grand-targhee', name: 'Grand Targhee', map: true, heat: true, lifts: true, bearing: 80,
+  { slug: 'grand-targhee', name: 'Grand Targhee', map: true, heat: true, lifts: true, center: [43.7896, -110.9585], bearing: 80,
     photo: { src: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b9/Grand_Targhee_Ski_Resort%2C_February_2021.jpg/250px-Grand_Targhee_Ski_Resort%2C_February_2021.jpg', page: 'https://commons.wikimedia.org/wiki/File:Grand_Targhee_Ski_Resort,_February_2021.jpg', author: 'Richardmouser', license: 'CC BY-SA 4.0' } },
   // The base is on the west side and the lifts climb east, so the camera looks east-northeast.
-  { slug: 'revelstoke', name: 'Revelstoke', map: true, heat: true, lifts: true, bearing: 70,
+  { slug: 'revelstoke', name: 'Revelstoke', map: true, heat: true, lifts: true, center: [50.9583, -118.1636], bearing: 70,
     photo: { src: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/16/A_day%27s_skiing_at_spedtacular_Mt_Revelstoke_-_Noth_Americas_biggest_vertical_drop_at_1713m_%285620_ft%29_-_the_mid_mountain_day_lodge_-_%2828620313540%29.jpg/250px-A_day%27s_skiing_at_spedtacular_Mt_Revelstoke_-_Noth_Americas_biggest_vertical_drop_at_1713m_%285620_ft%29_-_the_mid_mountain_day_lodge_-_%2828620313540%29.jpg', page: 'https://commons.wikimedia.org/wiki/File:A_day%27s_skiing_at_spedtacular_Mt_Revelstoke_-_Noth_Americas_biggest_vertical_drop_at_1713m_(5620_ft)_-_the_mid_mountain_day_lodge_-_(28620313540).jpg', author: 'Murray Foubister', license: 'CC BY-SA 2.0' } },
-  { slug: 'palisades-tahoe', name: 'Palisades Tahoe', map: false, heat: false, lifts: false, bearing: 0,
+  { slug: 'palisades-tahoe', name: 'Palisades Tahoe', map: false, heat: false, lifts: false, center: [39.1969, -120.2358], bearing: 0,
     photo: { src: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3c/TheVillageatSquawValley-exterior.jpg/250px-TheVillageatSquawValley-exterior.jpg', page: 'https://commons.wikimedia.org/wiki/File:TheVillageatSquawValley-exterior.jpg', author: 'Jonnyboyca at English Wikipedia', license: 'Public domain' } },
 ];
 
 export type Feature = 'snow' | 'map' | 'webcams' | 'lifts';
+
+/** A resort gets a snowflake in the list when this much new snow fell in the last 24 hours. */
+export const FRESH_SNOW_INCHES = 2;
 
 /** The feature tabs a resort has, in order (the first is the default). */
 export function featuresFor(resort: SkiResort | null): { key: Feature; label: string }[] {
@@ -62,7 +67,7 @@ export function featuresFor(resort: SkiResort | null): { key: Feature; label: st
  * own address (/ski/big-sky/map), and only the open tab loads.
  */
 @Component({
-  imports: [HeatmapPage, LiftsPage, RouterLink, SiteNav, SnowPage],
+  imports: [HeatmapPage, LiftsPage, ResortMap, RouterLink, SiteNav, SnowPage],
   selector: 'app-ski-page',
   styleUrl: './ski-page.css',
   templateUrl: './ski-page.html',
@@ -81,6 +86,49 @@ export class SkiPage {
     return this.features().find((f) => f.key === asked)?.key ?? this.features()[0].key;
   });
   protected readonly slug = computed(() => this.resort()?.slug ?? 'all');
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  /** List (the tabs) or Map (every resort on one interactive map), from ?view=map. */
+  protected readonly view = toSignal(this.route.queryParamMap.pipe(map((q) => (q.get('view') === 'map' ? 'map' : 'list'))), {
+    initialValue: 'list' as const,
+  });
+
+  protected setView(view: 'list' | 'map'): void {
+    void this.router.navigate([], { queryParams: { view: view === 'map' ? 'map' : null }, queryParamsHandling: 'merge' });
+  }
+
+  /** Newest morning's new snow per resort (for the snowflakes), from /api/snow/recent. */
+  protected readonly newSnow = signal<Record<string, number | null>>({});
+
+  protected freshSnow(slug: string): number | null {
+    const inches = this.newSnow()[slug];
+    return inches != null && inches >= FRESH_SNOW_INCHES ? inches : null;
+  }
+
+  private async loadNewSnow(): Promise<void> {
+    await Promise.all(
+      SKI_RESORTS.map(async (r) => {
+        try {
+          const response = await fetch(`/api/snow/recent?resort=${r.slug}`);
+          if (response.ok) {
+            const recent: RecentSnow = await response.json();
+            this.newSnow.update((all) => ({ ...all, [r.slug]: latestSnow(recent) }));
+          }
+        } catch {
+          // No snowflake for that resort.
+        }
+      }),
+    );
+  }
+
+  constructor() {
+    void this.loadNewSnow();
+  }
+
+  /** From the map: a resort was picked (or the card closed); stays in the map view. */
+  protected chooseOnMap(slug: string | null): void {
+    void this.router.navigate(['/ski', slug ?? 'all'], { queryParams: { view: 'map' } });
+  }
   /** One-item list so each resort gets fresh sections (and a freshly framed map). */
   protected readonly current = computed(() => [this.resort() ?? ALL]);
   protected readonly bestLap = signal<BestLap | null>(null);
@@ -91,4 +139,4 @@ export class SkiPage {
   }
 }
 
-const ALL: SkiResort = { slug: 'all', name: 'All resorts', map: false, heat: false, lifts: true, bearing: 0 };
+const ALL: SkiResort = { slug: 'all', name: 'All resorts', map: false, heat: false, lifts: true, bearing: 0, center: [45, -113] };

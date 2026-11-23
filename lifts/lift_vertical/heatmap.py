@@ -38,6 +38,7 @@ SNOW_STATIONS = {
     "Grand Targhee": [("1082:WY:SNTL", "Grand Targhee", 9260)],
     # Rogers Pass is in the same Selkirk range, about 50 km east; Revelstoke has no station of its own.
     "Revelstoke": [("bc:2A34P", "Glacier NP Rogers Pass Lower", None)],
+    "Palisades Tahoe": [("784:CA:SNTL", "Palisades Tahoe", 8010)],
 }
 BC_SNOW_URL = "https://www.env.gov.bc.ca/wsd/data_searches/snow/asws/data/{file}"
 BC_SNOW_PAGE = "https://www.env.gov.bc.ca/wsd/data_searches/snow/asws/"
@@ -54,13 +55,13 @@ def season_of(day: date) -> int:
     return day.year if day.month >= 8 else day.year - 1
 
 
-def new_snow(depths: dict[datetime, float], day: date) -> float | None:
-    """Inches of new snow in the WINDOW_HOURS to the morning of `day` (None without enough data):
+def new_snow(depths: dict[datetime, float], day: date, window: int = WINDOW_HOURS) -> float | None:
+    """Inches of new snow in the `window` hours to the morning of `day` (None without enough data):
     the biggest rise in smoothed snow depth over that stretch."""
     end = datetime(day.year, day.month, day.day, MORNING_PST)
-    hours = [end - timedelta(hours=h) for h in range(WINDOW_HOURS, -1, -1)]
+    hours = [end - timedelta(hours=h) for h in range(window, -1, -1)]
     values = [depths[t] for t in hours if t in depths]
-    if len(values) < MIN_READINGS:
+    if len(values) < window // 2:
         return None
     smoothed = [statistics.median(values[max(0, i - 1): i + 2]) for i in range(len(values))]
     lowest, rise = smoothed[0], 0.0
@@ -140,14 +141,40 @@ async def fetch_bridger_reports(client: httpx.AsyncClient) -> dict[str, float]:
     return morning_reports(reports)
 
 
-def morning_reports(reports: list[dict]) -> dict[str, float]:
+def morning_reports(reports: list[dict], field: str = "recent_snow") -> dict[str, float]:
     """The first report before 10 am each day (later ones are updated through the day)."""
     result: dict[str, float] = {}
     for report in sorted(reports, key=lambda r: r["date"]):
         day, hour = report["date"][:10], int(report["date"][11:13])
-        if hour < 10 and day not in result and report.get("recent_snow") is not None:
-            result[day] = float(report["recent_snow"])
+        if hour < 10 and day not in result and report.get(field) is not None:
+            result[day] = float(report[field])
     return result
+
+
+async def recent_snowfall(client: httpx.AsyncClient, resort: str, days: int = 7) -> dict:
+    """New snow on each of the last `days` mornings: from Bridger Bowl's own reports (the 24-hour
+    total), elsewhere from the resort's snow station (the 24-hour rise in snow depth to 7 am)."""
+    today = date.today()
+    dates = [today - timedelta(days=n) for n in range(days - 1, -1, -1)]
+    if resort == "Bridger Bowl":
+        query = "{ snow_reports(first: 60, page: 1) { data { date new_snow } } }"
+        response = await client.post(BRIDGER_API, json={"query": query}, timeout=30)
+        response.raise_for_status()
+        mornings = morning_reports(response.json()["data"]["snow_reports"]["data"], field="new_snow")
+        if any(d.isoformat() in mornings for d in dates):
+            return {"source": "Bridger Bowl snow reports",
+                    "days": [{"date": d.isoformat(), "inches": mornings.get(d.isoformat())} for d in dates]}
+        # No reports this week (the season hasn't started, or it's over): use the snow station.
+    stations = SNOW_STATIONS.get(resort)
+    if not stations:
+        return {"source": None, "days": [{"date": d.isoformat(), "inches": None} for d in dates]}
+    for triplet, name, _ in stations:  # the first station with readings this week
+        depths = await fetch_depths(client, triplet, dates[0] - timedelta(days=2), today)
+        if depths:
+            break
+    return {"source": f"{name} snow station" if triplet.startswith("bc:") else f"{name} SNOTEL",
+            "days": [{"date": d.isoformat(), "inches": None if (v := new_snow(depths, d, 24)) is None else round(v, 1)}
+                     for d in dates]}
 
 
 async def fetch_bc_depths(client: httpx.AsyncClient, code: str, begin: date, end: date) -> dict[datetime, float]:
