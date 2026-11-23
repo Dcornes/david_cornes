@@ -134,8 +134,8 @@ export class ResortMap implements AfterViewInit, OnDestroy {
       attributionControl: { compact: true },
       style: {
         version: 8,
-        // Fonts for the run names (MapLibre's free demo font server).
-        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        // Fonts for the run names, served by the site (public/fonts; Open Sans, Apache 2.0).
+        glyphs: `${location.origin}/fonts/{fontstack}/{range}.pbf`,
         sources: {
           osm: {
             type: 'raster',
