@@ -185,3 +185,52 @@ h1 .muted {
     font-size: 1.5rem;
   }
 }
+
+/* --- List / Map switch, at the start of the resort pills --- */
+.view-toggle {
+  display: inline-flex;
+  margin-right: 0.5rem;
+  border: 1px solid var(--text);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.view-toggle button {
+  padding: 0.4rem 0.9rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-toggle button + button {
+  border-left: 1px solid var(--text);
+}
+
+.view-toggle button.active {
+  background: #fc5200;
+  color: #fff;
+}
+
+.map-view {
+  margin-top: 1.5rem;
+}
+
+/* A snowflake on resorts with fresh snow (2″+ in the last 24 hours). */
+.resorts a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.fresh {
+  display: inline-flex;
+  color: #2a78d6;
+}
+
+.resorts a.active .fresh {
+  color: #9ec5f4;
+}

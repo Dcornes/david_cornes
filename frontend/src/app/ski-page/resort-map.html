@@ -1,0 +1,107 @@
+<div class="wrap">
+  <div #map class="map" role="application" aria-label="Map of ski resorts with their latest new snow"></div>
+
+  <div class="switches">
+    <div class="segmented" role="group" aria-label="Base map">
+      <button type="button" [class.active]="!satellite()" (click)="satellite.set(false)">Map</button>
+      <button type="button" [class.active]="satellite()" (click)="satellite.set(true)">Satellite</button>
+    </div>
+  </div>
+
+  @if (!resort()) {
+    <p class="hint">Pick a resort to see its snowfall. Numbers are the newest morning's new snow.</p>
+  }
+
+  @if (resort(); as r) {
+    <aside class="card" [attr.aria-label]="r.name">
+      <button type="button" class="close" aria-label="Close" (click)="choose.emit(null)">×</button>
+      <header class="card-head">
+        @if (r.photo; as photo) {
+          <img [src]="photo.src" [alt]="r.name" width="96" height="64" />
+        }
+        <div>
+          <h3>{{ r.name }}</h3>
+          @if (report()?.updated; as updated) {
+            <p class="muted small">Updated {{ updated | date: 'MMM d, h:mm a' }}</p>
+          }
+        </div>
+      </header>
+
+      @if (report(); as rep) {
+        <dl class="stats">
+          @for (s of rep.summary; track s.label + s.detail) {
+            <div>
+              <dt>{{ s.label }}</dt>
+              <dd>{{ s.value }}</dd>
+            </div>
+          }
+        </dl>
+      }
+
+      @if (week(); as w) {
+        <div class="week">
+          <p class="week-title">
+            Last 7 days <span class="muted">· {{ weekTotal() | number: '1.0-1' }}″ in all</span>
+          </p>
+          <div class="bars" role="img" [attr.aria-label]="'New snow each morning for the last 7 days'">
+            @for (d of w.days; track d.date) {
+              <div class="bar" [title]="(d.date | date: 'EEE MMM d') + ': ' + (d.inches === null ? 'no reading' : d.inches + '″')">
+                <span class="value">{{ d.inches === null ? '–' : (d.inches | number: '1.0-1') + '″' }}</span>
+                <span class="fill" [style.height]="barHeight(d.inches)"></span>
+                <span class="day muted">{{ d.date | date: 'EEEEE' }}</span>
+              </div>
+            }
+          </div>
+          @if (w.source) {
+            <p class="muted small">From {{ w.source }}.</p>
+          }
+        </div>
+      }
+
+      @if (report(); as rep) {
+        @if (camera(rep); as cam) {
+          <figure class="cam">
+            @if (rep.webcams.length > 1) {
+              <button type="button" class="cam-arrow prev" aria-label="Previous webcam" (click)="stepCam(rep, -1)">‹</button>
+              <button type="button" class="cam-arrow next" aria-label="Next webcam" (click)="stepCam(rep, 1)">›</button>
+            }
+            @if (cam.kind === 'embed') {
+              <iframe [src]="embedUrl(cam)" [title]="'Live webcam: ' + cam.name" loading="lazy" allowfullscreen
+                sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
+            } @else {
+              <img [src]="imageUrl(cam)" [alt]="'Webcam: ' + cam.name" loading="lazy" width="320" height="180" />
+            }
+            <figcaption class="muted small">📷 {{ cam.name }}@if (rep.webcams.length > 1) { · {{ camNumber(rep) }} / {{ rep.webcams.length }}}</figcaption>
+          </figure>
+        }
+      }
+
+      <nav class="links" aria-label="Open">
+        <a [routerLink]="['/ski', r.slug, 'snow']">Snow</a>
+        @if (r.map) {
+          <a [routerLink]="['/ski', r.slug, 'map']">Heat map</a>
+        }
+        <a [routerLink]="['/ski', r.slug, 'webcams']">Webcams</a>
+        @if (r.lifts) {
+          <a [routerLink]="['/ski', r.slug, 'lifts']">Lifts</a>
+        }
+      </nav>
+
+      @if (r.map) {
+        @if (!flown()) {
+          <button type="button" class="fly" (click)="flyIn()">Resort view 3D</button>
+        } @else {
+          <div class="layers">
+            <label><input type="checkbox" [checked]="showHeat()" (change)="showHeat.set($any($event.target).checked)" /> Powder heat</label>
+            <label><input type="checkbox" [checked]="showLifts()" (change)="showLifts.set($any($event.target).checked)" /> Lifts</label>
+            <label><input type="checkbox" [checked]="showNames()" (change)="showNames.set($any($event.target).checked)" /> Run names</label>
+          </div>
+          @if (heatNote(); as note) {
+            <p class="muted small">{{ note }}</p>
+          }
+          <button type="button" class="fly secondary" (click)="back()">← Back out</button>
+        }
+      }
+    </aside>
+  }
+</div>

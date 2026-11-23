@@ -1,0 +1,399 @@
+:host {
+  display: block;
+}
+
+.wrap {
+  position: relative;
+}
+
+.map {
+  width: 100%;
+  height: min(75vh, 46rem);
+  border: 1px solid var(--line);
+  background: #dfe3df;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.75rem;
+}
+
+p,
+h3,
+dl,
+dd,
+figure {
+  margin: 0;
+}
+
+/* --- Resort markers (added to the map as plain elements, so styled globally here) --- */
+:host ::ng-deep .resort-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+:host ::ng-deep .resort-marker .dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2.5px solid #fff;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.12),
+    0 2px 6px rgb(0 0 0 / 0.3);
+}
+
+:host ::ng-deep .resort-marker .label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.35rem 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.88);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.08),
+    0 4px 14px rgb(0 0 0 / 0.14);
+  color: #1f2a37;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+:host ::ng-deep .resort-marker .chip {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+:host ::ng-deep .resort-marker .chip.light {
+  color: #1f2a37;
+}
+
+:host ::ng-deep .resort-marker .cam-icon {
+  display: inline-flex;
+  margin-right: 0.3rem;
+  color: #6b7280;
+}
+
+/* Without a snow chip, the camera sits at the end of the pill. */
+:host ::ng-deep .resort-marker .label:not(:has(.chip:not([style*='none']))) {
+  padding-right: 0.6rem;
+}
+
+:host ::ng-deep .resort-marker:hover .label {
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.1),
+    0 8px 20px rgb(0 0 0 / 0.18);
+}
+
+:host ::ng-deep .resort-marker.active .label {
+  background: #1f2a37;
+  color: #fff;
+}
+
+:host ::ng-deep .resort-marker.active .cam-icon {
+  color: #cbd5e1;
+}
+
+:host ::ng-deep .resort-marker:focus-visible .label {
+  outline: 2px solid #fc5200;
+  outline-offset: 2px;
+}
+
+/* --- Controls over the map --- */
+.switches {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 2;
+}
+
+.segmented {
+  display: inline-flex;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.1);
+}
+
+.segmented button {
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  background: #fff;
+  color: #333;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1px solid #ddd;
+}
+
+.segmented button.active {
+  background: #333;
+  color: #fff;
+}
+
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.9);
+  color: #333;
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+
+/* --- The resort card --- */
+.card {
+  position: absolute;
+  top: 3rem;
+  right: 0.6rem;
+  z-index: 3;
+  width: min(22rem, calc(100% - 1.2rem));
+  max-height: calc(100% - 3.6rem);
+  overflow-y: auto;
+  padding: 1rem;
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+}
+
+.close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.6rem;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-right: 1.5rem;
+}
+
+.card-head img {
+  width: 6rem;
+  height: 4rem;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.card-head h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.25rem;
+  margin-top: 0.9rem;
+}
+
+.stats dt {
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.stats dd {
+  font-size: 1.25rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.week {
+  margin-top: 1rem;
+}
+
+.week-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.bars {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35rem;
+  height: 6.5rem;
+  margin: 0.4rem 0 0.3rem;
+}
+
+.bar {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: end;
+  text-align: center;
+}
+
+.bar .value {
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar .fill {
+  display: block;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: #2a78d6;
+  align-self: end;
+}
+
+.bar .day {
+  font-size: 0.6875rem;
+  padding-top: 0.15rem;
+}
+
+.cam {
+  position: relative;
+  margin-top: 1rem;
+}
+
+.cam-arrow {
+  position: absolute;
+  top: calc(50% - 1.3rem);
+  z-index: 1;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cam-arrow:hover {
+  background: rgb(0 0 0 / 0.8);
+}
+
+.cam-arrow.prev {
+  left: 0.4rem;
+}
+
+.cam-arrow.next {
+  right: 0.4rem;
+}
+
+.cam img,
+.cam iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: 0;
+  border-radius: 5px;
+  object-fit: cover;
+  background: var(--line);
+}
+
+.cam figcaption {
+  margin-top: 0.25rem;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+.links a {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.links a:hover {
+  border-color: var(--text);
+}
+
+.fly {
+  width: 100%;
+  margin-top: 0.9rem;
+  padding: 0.55rem;
+  border: 0;
+  border-radius: 6px;
+  background: #fc5200;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fly.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.layers {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.9rem;
+  font-size: 0.875rem;
+}
+
+.layers label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.layers input {
+  accent-color: #fc5200;
+}
+
+.layers + .small {
+  margin-top: 0.4rem;
+}
+
+/* On phones the card sits under the map instead of over it. */
+@media (max-width: 700px) {
+  .map {
+    height: 60vh;
+  }
+
+  .card {
+    position: static;
+    width: auto;
+    max-height: none;
+    margin-top: 0.75rem;
+    box-shadow: none;
+    border: 1px solid var(--line);
+  }
+}

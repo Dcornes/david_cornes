@@ -8,14 +8,31 @@
   </header>
 
   <nav class="resorts" aria-label="Ski area">
-    <a [routerLink]="['/ski', 'all', feature()]" [class.active]="resort() === null" [attr.aria-current]="resort() === null ? 'page' : null">All resorts</a>
+    <div class="view-toggle" role="group" aria-label="View">
+      <button type="button" [class.active]="view() === 'list'" [attr.aria-pressed]="view() === 'list'" (click)="setView('list')">List</button>
+      <button type="button" [class.active]="view() === 'map'" [attr.aria-pressed]="view() === 'map'" (click)="setView('map')">Map</button>
+    </div>
+    <a [routerLink]="['/ski', 'all', feature()]" queryParamsHandling="preserve" [class.active]="resort() === null" [attr.aria-current]="resort() === null ? 'page' : null">All resorts</a>
     @for (r of resorts; track r.slug) {
-      <a [routerLink]="['/ski', r.slug, feature()]" [class.active]="resort()?.slug === r.slug" [attr.aria-current]="resort()?.slug === r.slug ? 'page' : null">
+      <a [routerLink]="['/ski', r.slug, feature()]" queryParamsHandling="preserve" [class.active]="resort()?.slug === r.slug" [attr.aria-current]="resort()?.slug === r.slug ? 'page' : null">
         {{ r.name }}
+        @if (freshSnow(r.slug); as inches) {
+          <span class="fresh" [title]="inches + '″ of new snow in the last 24 hours'" [attr.aria-label]="inches + ' inches of new snow'">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M12 2v20M4.93 4.93l14.14 14.14M2 12h20M4.93 19.07 19.07 4.93" />
+              <path d="m9 4 3 3 3-3M9 20l3-3 3 3M4 9l3 3-3 3M20 9l-3 3 3 3" />
+            </svg>
+          </span>
+        }
       </a>
     }
   </nav>
 
+  @if (view() === 'map') {
+    <div class="map-view">
+      <app-resort-map [resorts]="resorts" [selected]="resort()?.slug ?? null" (choose)="chooseOnMap($event)" />
+    </div>
+  } @else {
   @for (r of current(); track r.slug) {
     <div class="resort-head">
       @if (r.photo; as photo) {
@@ -64,5 +81,6 @@
         </div>
       }
     </div>
+  }
   }
 </div>
