@@ -28,6 +28,24 @@ export function latestSnow(recent: RecentSnow | undefined): number | null {
   return known.length ? known[known.length - 1].inches : null;
 }
 
+const PITCH_3D = 55;
+
+/** Every heat cell's centre as [lat, lon]. */
+function cellPoints(grid: HeatGrid): LatLon[] {
+  const [lat0, lon0] = grid.center;
+  const kx = 111_320 * Math.cos((lat0 * Math.PI) / 180);
+  return grid.cells.map(([x, y]) => [lat0 + ((y + 0.5) * grid.cell_m) / 110_540, lon0 + ((x + 0.5) * grid.cell_m) / kx]);
+}
+
+/** The point `height × tan(pitch)` metres beyond `center` in the direction the camera faces. */
+export function aimPast(center: { lng: number; lat: number }, height: number, pitch: number, bearing: number): [number, number] {
+  const distance = height * Math.tan((pitch * Math.PI) / 180);
+  const b = (bearing * Math.PI) / 180;
+  const north = distance * Math.cos(b);
+  const east = distance * Math.sin(b);
+  return [center.lng + east / (111_320 * Math.cos((center.lat * Math.PI) / 180)), center.lat + north / 110_540];
+}
+const MAX_3D_ZOOM = 13.8;
 const CAMERA_ICON =
   '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>';
 const TERRAIN_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
@@ -335,6 +353,8 @@ export class ResortMap implements AfterViewInit, OnDestroy {
     this.heatNote.set(null);
     const name = encodeURIComponent(resort.name);
     const flip = (points: LatLon[]) => points.map(([lat, lon]) => [lon, lat]);
+    let liftPoints: LatLon[] = [];
+    let heatPoints: LatLon[] = [];
     try {
       const runs = await fetch(`/api/lifts/heatmap/runs?resort=${name}`);
       if (runs.ok && this.flown()) {
@@ -356,8 +376,7 @@ export class ResortMap implements AfterViewInit, OnDestroy {
             geometry: r.area ? { type: 'Polygon', coordinates: [flip(r.points)] } : { type: 'LineString', coordinates: flip(r.points) },
           })),
         });
-        // Frame the whole ski area (its lifts) in a tilted view looking up the mountain.
-        this.frameResort(data.lifts.flatMap((l) => l.line), resort.bearing);
+        liftPoints = data.lifts.flatMap((l) => l.line);
       }
       if (resort.heat) {
         let heat = await (await fetch(`/api/lifts/heatmap?resort=${name}&min_snow=8`)).json();
@@ -367,12 +386,18 @@ export class ResortMap implements AfterViewInit, OnDestroy {
           note = `Where I've skied here (all ${heat.days} days; none had 8″+)`;
         }
         if (this.flown()) {
-          (map.getSource('heat') as MapLibre.GeoJSONSource).setData({ type: 'FeatureCollection', features: heatLines(heat.heat as HeatGrid) });
+          const grid = heat.heat as HeatGrid;
+          (map.getSource('heat') as MapLibre.GeoJSONSource).setData({ type: 'FeatureCollection', features: heatLines(grid) });
           this.heatNote.set(note);
+          heatPoints = cellPoints(grid);
         }
       }
     } catch {
       this.heatNote.set("Couldn't load the heat map just now.");
+    }
+    // Frame where I've skied (the heat), or else the whole ski area, looking up the mountain.
+    if (this.flown()) {
+      this.frameResort(heatPoints.length ? heatPoints : liftPoints, resort.bearing);
     }
   }
 
@@ -384,13 +409,22 @@ export class ResortMap implements AfterViewInit, OnDestroy {
     }
     const bounds = new ml.LngLatBounds();
     points.forEach(([lat, lon]) => bounds.extend([lon, lat]));
-    const pad = this.cardPadding();
-    map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
-    const camera = map.cameraForBounds(bounds, { padding: { top: 20, bottom: 20, left: 20, right: pad.right + 20 }, bearing });
-    if (camera) {
-      // Tilting shows more ground in the distance, so the tilted view can come in a little closer.
-      map.flyTo({ ...camera, zoom: (camera.zoom ?? 13) + 0.5, pitch: 60, bearing, duration: 2500 });
-    }
+    // The zoom that fits the whole ski area, then pulled back: the mountain stands well above the
+    // flat map the fit assumes, so a tilted camera at that zoom would sit in the slope.
+    const camera = map.cameraForBounds(bounds, { padding: 40, bearing });
+    const zoom = Math.min((camera?.zoom ?? 13) - 0.7, MAX_3D_ZOOM);
+    // Centred in the space left of the card.
+    const center = bounds.getCenter();
+    map.flyTo({ center, zoom, pitch: PITCH_3D, bearing, padding: this.cardPadding(), duration: 2500 });
+    // The camera aims at sea level, but the resort stands thousands of feet up, so it shows up
+    // nearer than the aim (towards the bottom of the view). Once the terrain has loaded, aim past
+    // it by height × tan(tilt), along the view, so the resort itself sits in the middle.
+    map.once('idle', () => {
+      const height = map.queryTerrainElevation(center);
+      if (this.flown() && height) {
+        map.easeTo({ center: aimPast(center, height, PITCH_3D, bearing), duration: 900 });
+      }
+    });
   }
 
   /** Keep the resort clear of the card, which covers the right side of the map on wide screens. */
