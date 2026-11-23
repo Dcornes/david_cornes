@@ -130,7 +130,7 @@ export class ResortMap implements AfterViewInit, OnDestroy {
       zoom: 4,
       maxZoom: 16,
       maxPitch: 75,
-      scrollZoom: false,
+      scrollZoom: true, // the mouse wheel zooms
       attributionControl: { compact: true },
       style: {
         version: 8,

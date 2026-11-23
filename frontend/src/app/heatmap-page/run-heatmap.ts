@@ -243,7 +243,7 @@ const SATELLITE_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/Wo
         </button>
       </div>
     </div>
-    <span class="hint">{{ view() === '3d' ? 'Drag to move · right-drag or Ctrl-drag to tilt and turn' : 'Drag to move' }}</span>
+    <span class="hint">{{ view() === '3d' ? 'Scroll to zoom · drag to move · right-drag or Ctrl-drag to tilt and turn' : 'Scroll to zoom · drag to move' }}</span>
   `,
 })
 export class RunHeatmap implements AfterViewInit, OnDestroy {
@@ -359,7 +359,7 @@ export class RunHeatmap implements AfterViewInit, OnDestroy {
       bearing: this.bearing(),
       maxPitch: 80,
       maxZoom: 16, // closer, the 10 m grid would show
-      scrollZoom: false,
+      scrollZoom: true, // the mouse wheel zooms
       attributionControl: { compact: true },
       style: {
         version: 8,

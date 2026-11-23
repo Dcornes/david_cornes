@@ -59,7 +59,7 @@ export class RouteMap implements AfterViewInit, OnDestroy {
     const module = await import('leaflet');
     this.leaflet = ((module as unknown as { default?: typeof Leaflet }).default ?? module) as typeof Leaflet;
     const L = this.leaflet;
-    this.map = L.map(this.element().nativeElement, { scrollWheelZoom: false, attributionControl: true });
+    this.map = L.map(this.element().nativeElement, { scrollWheelZoom: true, attributionControl: true });
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
