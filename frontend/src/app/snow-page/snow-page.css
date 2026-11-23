@@ -371,3 +371,39 @@ tbody th {
 .today-cam figure {
   margin: 0;
 }
+
+/* An opened resort in the list keeps its webcam small. */
+.small-cam {
+  max-width: 22rem;
+  margin-bottom: 1rem;
+}
+
+/* --- All resorts' webcams --- */
+.all-cams {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 2rem 1.5rem;
+}
+
+.resort-cam h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.resort-cam h3 a:hover,
+.more-cams:hover,
+.source a:hover {
+  text-decoration: underline;
+}
+
+.more-cams {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.all-stats {
+  margin-top: 1.5rem;
+}

@@ -51,7 +51,7 @@
           <app-heatmap-page [embedded]="true" [only]="r.name" [heatAvailable]="r.heat" [bearing]="r.bearing" [bestLap]="bestLap()" />
         }
         @case ('webcams') {
-          <app-snow-page [embedded]="true" [resort]="resort()!.slug" part="webcams" />
+          <app-snow-page [embedded]="true" [resort]="resort()?.slug ?? null" part="webcams" />
         }
         @case ('lifts') {
           <app-lifts-page [embedded]="true" [only]="resort()?.name ?? null" [bearing]="r.bearing" (bestLap)="setBestLap($event)" />

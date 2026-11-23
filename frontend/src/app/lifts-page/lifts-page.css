@@ -414,3 +414,16 @@ td.mine {
 .lift-key {
   border-top: 2px dotted #2f2f2f;
 }
+
+.show-unridden {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.9rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.show-unridden input {
+  accent-color: #fc5200;
+}

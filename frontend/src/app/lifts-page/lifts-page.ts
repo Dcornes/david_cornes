@@ -131,6 +131,33 @@ export function liftDay(
   };
 }
 
+/**
+ * How much longer my real laps take than ride time plus skiing down at my speed (lines,
+ * loading, traverses, stops): the median over lifts I've lapped at least 3 times, to the
+ * nearest half minute. Null without enough Strava laps. Estimates for other lifts add this.
+ */
+export function myExtraMinutes(mine: MyLaps | null, lifts: Lift[]): number | null {
+  const rate = mine?.ski_rate_ft_min;
+  if (!mine || !rate) {
+    return null;
+  }
+  const byName = new Map(lifts.map((l) => [`${l.resort}|${l.name}`, l]));
+  const extras = mine.lifts
+    .filter((m) => m.round_trip_minutes !== null && m.laps >= 3)
+    .map((m) => {
+      const lift = byName.get(`${m.resort}|${m.liftblog_name}`);
+      return lift ? m.round_trip_minutes! - (lift.ride_time + lift.vertical / rate) : null;
+    })
+    .filter((e): e is number => e !== null)
+    .sort((a, b) => a - b);
+  if (!extras.length) {
+    return null;
+  }
+  const middle = extras.length / 2;
+  const median = extras.length % 2 ? extras[Math.floor(middle)] : (extras[middle - 1] + extras[middle]) / 2;
+  return Math.max(0, Math.round(median * 2) / 2);
+}
+
 @Component({
   imports: [DecimalPipe, RouteMap, RouterLink, RunHeatmap, SiteNav],
   selector: 'app-lifts-page',
@@ -170,13 +197,17 @@ export class LiftsPage implements OnInit {
     }
     const [rate, hours, extra] = [this.descentRate(), this.dayHours(), this.extraMinutes()];
     const byKey = new Map(map.lifts.filter((l) => l.route).map((l) => [l.key, l]));
-    const options = (this.data()?.lifts ?? [])
+    let options = (this.data()?.lifts ?? [])
       .filter((l) => l.resort === resort && byKey.has(liftKey(l.name)))
       .map((l) => {
         const mine = this.myLift(l);
         return { day: liftDay(l, rate, hours, extra, mine), osm: byKey.get(liftKey(l.name))!, mine: mine?.round_trip_minutes ? mine : null };
       })
       .sort((a, b) => b.day.daily_vertical - a.day.daily_vertical);
+    // Estimates run optimistic, so pick from lifts I've really lapped unless the others are shown too.
+    if (!this.showUnridden() && options.some((o) => o.mine)) {
+      options = options.filter((o) => o.mine);
+    }
     return { resort, map, best: options[0] ?? null, others: options.slice(1, 4) };
   });
   /** null = every resort */
@@ -188,13 +219,29 @@ export class LiftsPage implements OnInit {
   private timer?: ReturnType<typeof setTimeout>;
   private mapTimer?: ReturnType<typeof setTimeout>;
 
-  protected readonly lifts = computed(() => {
+  /** Show lifts I haven't lapped too (by default only those with my Strava lap times). */
+  protected readonly showUnridden = signal(false);
+
+  /** Every lift at the chosen resort(s), with a day of laps on it. */
+  private readonly allLifts = computed(() => {
     const resort = this.resort();
-    const key = this.sort();
     const [rate, hours, extra] = [this.descentRate(), this.dayHours(), this.extraMinutes()];
-    const lifts = (this.data()?.lifts ?? [])
+    return (this.data()?.lifts ?? [])
       .filter((l) => resort === null || l.resort === resort)
       .map((l) => liftDay(l, rate, hours, extra, this.myLift(l)));
+  });
+
+  /** How many lifts are hidden because I haven't lapped them (0 when there's nothing of mine to show instead). */
+  protected readonly unriddenCount = computed(() => {
+    const lifts = this.allLifts();
+    const mine = lifts.filter((l) => l.my_laps !== null).length;
+    return mine ? lifts.length - mine : 0;
+  });
+
+  protected readonly lifts = computed(() => {
+    const key = this.sort();
+    const onlyMine = !this.showUnridden() && this.unriddenCount() > 0;
+    const lifts = this.allLifts().filter((l) => !onlyMine || l.my_laps !== null);
     return lifts.sort((a, b) => {
       if (key === 'name' || key === 'resort') {
         return a[key].localeCompare(b[key]);
@@ -207,10 +254,14 @@ export class LiftsPage implements OnInit {
   protected readonly maxDaily = computed(() => Math.max(1, ...this.lifts().map((l) => l.daily_vertical)));
 
   /** Set an assumption from a number input, ignoring blanks and nonsense. */
+  /** Set once the viewer changes an assumption, so my pace isn't applied over their choice. */
+  private edited = false;
+
   protected setNumber(target: { set(value: number): void }, raw: string, min: number, max: number): void {
     const value = Number(raw);
     if (raw !== '' && Number.isFinite(value)) {
       target.set(Math.min(Math.max(value, min), max));
+      this.edited = true;
     }
   }
 
@@ -260,6 +311,7 @@ export class LiftsPage implements OnInit {
       const response = await fetch('/api/lifts/mine');
       if (response.ok) {
         this.mine.set(await response.json());
+        this.applyMyPace();
       }
     } catch {
       // Optional section; nothing to show.
@@ -271,10 +323,22 @@ export class LiftsPage implements OnInit {
     return this.mine()?.lifts.find((m) => m.resort === lift.resort && m.liftblog_name === lift.name) ?? null;
   }
 
+  /** Realistic estimates: my real pace instead of the fast-skier defaults, unless the viewer changed them. */
+  private applyMyPace(): void {
+    if (!this.edited && this.mine() && this.data()) {
+      this.useMySpeed();
+    }
+  }
+
+  /** My real ski-down speed and typical extra time per lap, from Strava. */
   protected useMySpeed(): void {
     const rate = this.mine()?.ski_rate_ft_min;
     if (rate) {
       this.descentRate.set(Math.round(rate / 10) * 10);
+    }
+    const extra = myExtraMinutes(this.mine(), this.data()?.lifts ?? []);
+    if (extra !== null) {
+      this.extraMinutes.set(extra);
     }
   }
 
@@ -283,6 +347,7 @@ export class LiftsPage implements OnInit {
       const response = await fetch('/api/lifts');
       if (response.ok) {
         this.data.set(await response.json());
+        this.applyMyPace();
         return;
       }
       this.error.set(response.status === 503 ? 'Fetching lift data…' : "Couldn't load lift data. Trying again shortly.");

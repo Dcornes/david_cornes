@@ -63,43 +63,39 @@
           <p class="message">{{ r.message }}</p>
         }
       </div>
-      @if (r.tables.length) {
-        <details class="more" [open]="isExpanded(r)">
-          <summary (click)="$event.preventDefault(); setExpanded(r, !isExpanded(r))">More snow stats</summary>
-          @if (isExpanded(r)) {
-            @for (t of r.tables; track t.title) {
-              <h3>{{ t.title }}</h3>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      @for (c of t.columns; track $index) {
-                        <th scope="col">{{ c }}</th>
+      <!-- One resort: every stat shown, no drop-down. -->
+      <div class="all-stats">
+        @for (t of r.tables; track t.title) {
+          <h3>{{ t.title }}</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  @for (c of t.columns; track $index) {
+                    <th scope="col">{{ c }}</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of t.rows; track $index) {
+                  <tr>
+                    @for (cell of row; track $index; let first = $first) {
+                      @if (first) {
+                        <th scope="row">{{ cell }}</th>
+                      } @else {
+                        <td>{{ cell }}</td>
                       }
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (row of t.rows; track $index) {
-                      <tr>
-                        @for (cell of row; track $index; let first = $first) {
-                          @if (first) {
-                            <th scope="row">{{ cell }}</th>
-                          } @else {
-                            <td>{{ cell }}</td>
-                          }
-                        }
-                      </tr>
                     }
-                  </tbody>
-                </table>
-              </div>
-              @if (t.note) {
-                <p class="note muted">{{ t.note }}</p>
-              }
-            }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (t.note) {
+            <p class="note muted">{{ t.note }}</p>
           }
-        </details>
-      }
+        }
+      </div>
     }
     @if (part() !== 'stats') {
       <div class="today-cam">
@@ -131,6 +127,27 @@
   </ng-template>
 
   @if (data(); as d) {
+    @if (part() === 'webcams' && resort() === null) {
+      <div class="all-cams">
+        @for (r of shown(); track r.id) {
+          <section class="resort-cam">
+            <h3>
+              <a [routerLink]="['/ski', r.id, 'webcams']">{{ r.name }}</a>
+            </h3>
+            @if (featured(r); as cam) {
+              <ng-container *ngTemplateOutlet="webcam; context: { $implicit: cam, big: false }" />
+            } @else if (r.webcams_page) {
+              <p class="no-cams muted">
+                Can't be shown here. <a [href]="r.webcams_page" target="_blank" rel="noopener">See them on its site ↗</a>
+              </p>
+            }
+            @if (r.webcams.length > 1) {
+              <a class="more-cams" [routerLink]="['/ski', r.id, 'webcams']">All {{ r.webcams.length }} webcams →</a>
+            }
+          </section>
+        }
+      </div>
+    } @else {
     @for (r of shown(); track r.id) {
       @if (resort() === null) {
       <details class="resort" [open]="isOpen(r)">
@@ -152,10 +169,9 @@
               }
             </dl>
           </span>
-          <!-- A small view of the featured camera while collapsed (the full-size one shows when open). -->
+          <!-- A small view of the featured camera, open or collapsed. -->
           <span class="thumb">
-            @if (!isOpen(r)) {
-              @if (featured(r); as cam) {
+            @if (featured(r); as cam) {
                 @if (cam.kind === 'embed') {
                   <iframe
                     [src]="embedUrl(cam)"
@@ -168,7 +184,6 @@
                   <img [src]="imageUrl(cam)" [alt]="'Webcam: ' + cam.name" loading="lazy" decoding="async" width="320" height="180" />
                 }
                 <span class="thumb-name muted">{{ cam.name }}</span>
-              }
             }
           </span>
           <span class="updated muted">
@@ -183,23 +198,12 @@
 
         @if (isOpen(r)) {
           <div class="body">
-            @if (featured(r); as cam) {
-              <ng-container *ngTemplateOutlet="webcam; context: { $implicit: cam, big: true }" />
-            } @else if (r.webcams_page) {
+            @if (!featured(r) && r.webcams_page) {
               <p class="no-cams muted">
                 {{ r.name }}'s webcams can't be shown here.
                 <a [href]="r.webcams_page" target="_blank" rel="noopener">See them on its website ↗</a>
               </p>
             }
-
-            <details class="more" [open]="isExpanded(r)">
-              <summary (click)="$event.preventDefault(); setExpanded(r, !isExpanded(r))">
-                More stats
-                @if (otherWebcams(r).length) {
-                  and {{ otherWebcams(r).length }} more webcams
-                }
-              </summary>
-              @if (isExpanded(r)) {
                 @if (r.message) {
                   <p class="message">{{ r.message }}</p>
                 }
@@ -233,20 +237,13 @@
                     <p class="note muted">{{ t.note }}</p>
                   }
                 }
-                @if (otherWebcams(r).length) {
-                  <h3>Webcams</h3>
-                  <div class="webcams">
-                    @for (cam of otherWebcams(r); track cam.src) {
-                      <ng-container *ngTemplateOutlet="webcam; context: { $implicit: cam, big: false }" />
-                    }
-                  </div>
-                }
                 <p class="source muted">
+                  @if (embedded() && r.webcams.length) {
+                    <a [routerLink]="['/ski', r.id, 'webcams']">All {{ r.webcams.length }} webcams →</a> ·
+                  }
                   Data from <a [href]="r.source_url" target="_blank" rel="noopener">{{ r.source }}</a>.
                   <a [href]="r.website" target="_blank" rel="noopener">{{ r.name }} website ↗</a>
                 </p>
-              }
-            </details>
           </div>
         }
       </details>
@@ -262,6 +259,7 @@
       Snow totals and webcam images belong to each ski area (Grand Targhee's and Palisades Tahoe's numbers are from
       the USDA's SNOTEL snow stations on those mountains). Checked hourly; last checked {{ d.fetched_at | date: 'h:mm a' }} {{ d.fetched_at | timeZone }}.
     </footer>
+    }
     }
   } @else {
     <p class="muted empty" role="status">{{ error() ?? 'Loading snow totals…' }}</p>

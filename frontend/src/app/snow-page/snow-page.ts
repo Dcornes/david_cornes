@@ -85,7 +85,7 @@ export class SnowPage implements OnInit {
   protected readonly error = signal<string | null>(null);
   /** Resort ids the viewer opened; the rest are collapsed (showing only a thumbnail of their featured webcam). */
   protected readonly opened = signal<Set<string>>(loadOpened());
-  /** Resort ids whose "more" section is open. Its webcams load only then. */
+  /** Resort ids whose "more" section is open (one resort), or closed (the all-resorts list, where it starts open). */
   protected readonly expanded = signal<Set<string>>(new Set());
   private readonly now = signal(Date.now());
   private readonly embeds = new Map<string, SafeResourceUrl>();
@@ -142,12 +142,14 @@ export class SnowPage implements OnInit {
   }
 
   protected isExpanded(resort: Resort): boolean {
-    return this.expanded().has(resort.id);
+    const listed = this.resort() === null; // in the list, "More stats" starts open
+    return listed !== this.expanded().has(resort.id);
   }
 
   protected setExpanded(resort: Resort, open: boolean): void {
+    const listed = this.resort() === null;
     const next = new Set(this.expanded());
-    if (open) {
+    if (open !== listed) {
       next.add(resort.id);
     } else {
       next.delete(resort.id);

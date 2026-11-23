@@ -43,6 +43,7 @@ export function featuresFor(resort: SkiResort | null): { key: Feature; label: st
   if (!resort) {
     return [
       { key: 'snow', label: 'Snow report' },
+      { key: 'webcams', label: 'Webcams' },
       { key: 'lifts', label: 'Lifts' },
     ];
   }

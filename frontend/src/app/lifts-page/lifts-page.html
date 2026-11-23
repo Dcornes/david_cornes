@@ -36,15 +36,15 @@
         </label>
         <button type="button" class="reset" (click)="resetAssumptions()">Fast skier defaults</button>
         @if (mine()?.ski_rate_ft_min; as rate) {
-          <button type="button" class="reset" (click)="useMySpeed()">Use my speed ({{ rate | number: '1.0-0' }} ft/min)</button>
+          <button type="button" class="reset" (click)="useMySpeed()">Use my pace ({{ rate | number: '1.0-0' }} ft/min)</button>
         }
       </div>
 
       @if (mine(); as m) {
         <p class="muted note my-note">
           <span class="mine-mark" aria-hidden="true">●</span> Lap times marked with a dot are my real round trips (ride, ski
-          down and any line), medians from {{ m.days }} ski days and {{ m.laps }} laps on Strava. The rest are estimates
-          from the settings above.
+          down and any line), medians from {{ m.days }} ski days and {{ m.laps }} laps on Strava. The table shows the lifts
+          I've lapped; tick the box below to add the rest, with estimates from the settings above.
         </p>
       }
 
@@ -57,6 +57,12 @@
       </div>
       }
 
+      @if (unriddenCount() > 0 || showUnridden()) {
+        <label class="show-unridden">
+          <input type="checkbox" [checked]="showUnridden()" (change)="showUnridden.set($any($event.target).checked)" />
+          Show lifts I haven't lapped ({{ unriddenCount() }} more)
+        </label>
+      }
       <div class="table-wrap">
         <table>
           <thead>
