@@ -12,17 +12,17 @@ export const routes: Routes = [
   {
     path: 'ski',
     loadComponent: () => import('./ski-page/ski-page').then((m) => m.SkiPage),
-    title: 'Skiing · David Cornes',
+    title: 'Ski Stats · David Cornes',
   },
   {
     path: 'ski/:resort',
     loadComponent: () => import('./ski-page/ski-page').then((m) => m.SkiPage),
-    title: 'Skiing · David Cornes',
+    title: 'Ski Stats · David Cornes',
   },
   {
     path: 'ski/:resort/:feature',
     loadComponent: () => import('./ski-page/ski-page').then((m) => m.SkiPage),
-    title: 'Skiing · David Cornes',
+    title: 'Ski Stats · David Cornes',
   },
   // The skiing pages were merged into /ski; old links still work.
   { path: 'snow', redirectTo: 'ski' },

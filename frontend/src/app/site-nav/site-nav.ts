@@ -133,7 +133,7 @@ import { filter } from 'rxjs';
 export class SiteNav {
   protected readonly projects = [
     { path: '/markets', label: 'Live markets' },
-    { path: '/ski', label: 'Skiing' },
+    { path: '/ski', label: 'Ski Stats' },
   ];
   protected readonly open = signal(false);
   protected readonly onProject = signal(false);

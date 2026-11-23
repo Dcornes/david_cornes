@@ -49,7 +49,7 @@ describe('ResumePage', () => {
     fixture.detectChanges();
     expect(button.getAttribute('aria-expanded')).toBe('true');
     expect(page.querySelector('a[href="/markets"]')?.textContent).toContain('Live markets');
-    expect(page.querySelector('a[href="/ski"]')?.textContent).toContain('Skiing');
+    expect(page.querySelector('a[href="/ski"]')?.textContent).toContain('Ski Stats');
 
     document.body.click(); // a click elsewhere closes it
     fixture.detectChanges();
